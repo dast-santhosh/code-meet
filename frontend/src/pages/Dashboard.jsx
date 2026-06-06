@@ -4,7 +4,7 @@ import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc } from 'fi
 import { db, auth } from '../firebase/config';
 import useAppStore from '../store';
 import toast from 'react-hot-toast';
-import { Video, LogOut, Play, Square, Loader2, BookOpen, UserCheck, Shield, Award } from 'lucide-react';
+import { Video, LogOut, Play, Square, Loader2, BookOpen, UserCheck, Shield, Award, Terminal } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -124,6 +124,20 @@ export default function Dashboard() {
     navigate(`/meet/${squadron.id}`);
   };
 
+  const getThumbnail = (name) => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('python')) {
+      return 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&auto=format&fit=crop&q=60';
+    }
+    if (n.includes('computer') || n.includes('hardware') || n.includes('os') || n.includes('basic')) {
+      return 'https://images.unsplash.com/photo-1547082299-de196ea013d6?w=500&auto=format&fit=crop&q=60';
+    }
+    if (n.includes('ai') || n.includes('artificial') || n.includes('skill') || n.includes('professional')) {
+      return 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=500&auto=format&fit=crop&q=60';
+    }
+    return 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=500&auto=format&fit=crop&q=60';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0a]">
@@ -158,6 +172,13 @@ export default function Dashboard() {
             <p className="text-[10px] text-slate-500 uppercase font-semibold">{userProfile?.email}</p>
           </div>
           <button 
+            onClick={() => navigate('/ide')} 
+            className="p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
+          >
+            <Terminal className="w-4 h-4" />
+            <span>Open IDE</span>
+          </button>
+          <button 
             onClick={handleLogout} 
             className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
           >
@@ -187,77 +208,91 @@ export default function Dashboard() {
               return (
                 <div 
                   key={sq.id} 
-                  className={`glass-panel p-6 rounded-3xl border transition duration-150 flex flex-col justify-between h-[200px] ${
-                    isLive ? 'border-neutral-700 bg-neutral-900/60 shadow-lg shadow-black/20' : 'border-neutral-800/80 bg-neutral-900/20'
+                  className={`flex flex-col bg-neutral-900/30 border rounded-3xl overflow-hidden hover:border-neutral-700 transition duration-300 shadow-md group ${
+                    isLive ? 'border-neutral-700 bg-neutral-900/60 shadow-lg shadow-black/20' : 'border-neutral-850/80 bg-neutral-900/20'
                   }`}
                 >
-                  <div>
-                    {/* Live Badge */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase font-orbitron">{sq.name}</span>
+                  {/* Thumbnail Banner with float badge */}
+                  <div className="h-[140px] w-full relative overflow-hidden bg-neutral-950">
+                    <img 
+                      src={getThumbnail(sq.name)} 
+                      alt={sq.name} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500 opacity-80"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-transparent to-transparent" />
+                    
+                    {/* Live status float badge */}
+                    <div className="absolute top-3 right-3">
                       {isLive ? (
-                        <div className="flex items-center gap-1 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded-lg">
+                        <div className="flex items-center gap-1.5 bg-red-500/20 backdrop-blur-md border border-red-500/40 px-2.5 py-1 rounded-xl shadow-lg">
                           <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                           <span className="text-[8px] font-black text-red-400 tracking-wider font-orbitron">LIVE</span>
                         </div>
                       ) : (
-                        <span className="text-[8px] font-bold text-slate-600 bg-neutral-950 border border-white/5 px-2 py-0.5 rounded-lg font-orbitron">STANDBY</span>
+                        <span className="text-[8px] font-bold text-slate-400 bg-neutral-950/80 backdrop-blur-md border border-white/5 px-2.5 py-1 rounded-xl font-orbitron">STANDBY</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="p-5 flex flex-col justify-between flex-1 gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide uppercase line-clamp-1 group-hover:text-white transition">
+                        {sq.name}
+                      </h3>
+                      {isLive && (
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-1">
+                          <UserCheck className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Host: {session.startedByName}</span>
+                        </p>
                       )}
                     </div>
 
-                    <h3 className="text-sm font-bold text-white mb-1">{sq.description || "Interactive Coding Session"}</h3>
-                    {isLive && (
-                      <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <UserCheck className="w-3.5 h-3.5 text-slate-500" />
-                        Host: {session.startedByName}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-4">
-                    {role === 'commandant' ? (
-                      isLive ? (
-                        <div className="flex gap-2">
+                    {/* Actions */}
+                    <div>
+                      {role === 'commandant' ? (
+                        isLive ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleJoinClass(sq)}
+                              className="flex-1 bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3 rounded-2xl transition flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              Enter
+                            </button>
+                            <button
+                              onClick={() => handleEndClass(sq.id)}
+                              className="px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold rounded-2xl transition flex items-center justify-center cursor-pointer"
+                            >
+                              <Square className="w-3.5 h-3.5 fill-red-400" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleStartClass(sq)}
+                            className="w-full bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-white text-white" />
+                            Start Class
+                          </button>
+                        )
+                      ) : (
+                        // CADET (Student) view
+                        isLive ? (
                           <button
                             onClick={() => handleJoinClass(sq)}
-                            className="flex-1 bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3 rounded-2xl transition flex items-center justify-center gap-1 cursor-pointer"
+                            className="w-full bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-black/20 cursor-pointer"
                           >
-                            <Video className="w-3.5 h-3.5" />
-                            Enter
+                            <Video className="w-4 h-4" />
+                            Join Class
                           </button>
-                          <button
-                            onClick={() => handleEndClass(sq.id)}
-                            className="px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold rounded-2xl transition flex items-center justify-center cursor-pointer"
-                          >
-                            <Square className="w-3.5 h-3.5 fill-red-400" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleStartClass(sq)}
-                          className="w-full bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-white text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-white text-white" />
-                          Start Class
-                        </button>
-                      )
-                    ) : (
-                      // CADET (Student) view
-                      isLive ? (
-                        <button
-                          onClick={() => handleJoinClass(sq)}
-                          className="w-full bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-black/20 cursor-pointer"
-                        >
-                          <Video className="w-4 h-4" />
-                          Join Class
-                        </button>
-                      ) : (
-                        <div className="w-full bg-neutral-900/40 text-slate-500 text-center py-3 text-xs font-bold uppercase rounded-2xl border border-white/5 cursor-not-allowed">
-                          No active class
-                        </div>
-                      )
-                    )}
+                        ) : (
+                          <div className="w-full bg-neutral-900/40 text-slate-500 text-center py-3 text-xs font-bold uppercase rounded-2xl border border-white/5 cursor-not-allowed">
+                            No active class
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               );
