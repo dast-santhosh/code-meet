@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import * as Y from 'yjs';
 import { MonacoBinding } from 'y-monaco';
@@ -7,6 +7,7 @@ import useAppStore from '../store';
 export default function CodeEditor({ yText, readOnly = false, value = "", onChange = null }) {
   const editorRef = useRef(null);
   const bindingRef = useRef(null);
+  const [isMounted, setIsMounted] = useState(false);
   const { editorTheme, editorFontSize, editorFontFamily } = useAppStore();
 
   // Handle editor mounting
@@ -35,16 +36,27 @@ export default function CodeEditor({ yText, readOnly = false, value = "", onChan
       }
     });
 
-    // Bind Yjs shared text to Monaco if collaborative and yText is provided
+    setIsMounted(true);
+  };
+
+  // Manage collaborative Monaco-Yjs binding reactively
+  useEffect(() => {
+    if (!editorRef.current || !isMounted) return;
+
+    if (bindingRef.current) {
+      bindingRef.current.destroy();
+      bindingRef.current = null;
+    }
+
     if (!readOnly && yText) {
-      const model = editor.getModel();
+      const model = editorRef.current.getModel();
       bindingRef.current = new MonacoBinding(
         yText,
         model,
-        new Set([editor])
+        new Set([editorRef.current])
       );
     }
-  };
+  }, [yText, readOnly, isMounted]);
 
   // Perform Live Syntax Linting on Keystroke (without compilation)
   const handleEditorChange = (code, event) => {
@@ -222,7 +234,7 @@ export default function CodeEditor({ yText, readOnly = false, value = "", onChan
       <MonacoEditor
         language="python"
         theme={getMonacoTheme()}
-        value={readOnly ? value : undefined}
+        value={(!yText || readOnly) ? value : undefined}
         options={{
           fontSize: editorFontSize,
           fontFamily: editorFontFamily,
