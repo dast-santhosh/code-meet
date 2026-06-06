@@ -62,7 +62,7 @@ export default function Login() {
         
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-slate-900/80 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 p-2">
             <img src={LOGO} alt="DevShaala Logo" className="w-12 h-12 object-contain" />
           </div>
           <h1 className="text-2xl font-black font-outfit tracking-wider text-slate-100 uppercase">

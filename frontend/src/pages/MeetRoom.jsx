@@ -679,7 +679,9 @@ img
       <header className="h-[48px] bg-slate-950/70 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-5 w-auto" />
+            <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center p-0.5 flex-shrink-0">
+              <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-4.5 w-auto object-contain" />
+            </div>
             <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400">DEVSHAALA Meet</span>
           </div>
 

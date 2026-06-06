@@ -138,7 +138,7 @@ export default function Dashboard() {
       {/* Dashboard Top Header */}
       <div className="max-w-5xl mx-auto flex items-center justify-between border-b border-white/5 pb-6 mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-emerald-500/20 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-white border border-emerald-500/20 flex items-center justify-center p-1.5">
             <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="w-7 h-7 object-contain" />
           </div>
           <div>

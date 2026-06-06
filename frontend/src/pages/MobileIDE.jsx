@@ -269,7 +269,9 @@ img
       {/* 1. Header Navigation Bar */}
       <header className="h-[52px] bg-slate-950/80 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel shrink-0">
         <div className="flex items-center gap-3">
-          <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-6 w-auto" />
+          <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0">
+            <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-5 w-auto object-contain" />
+          </div>
           <div className="flex flex-col">
             <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400">DEVSHAALA</span>
             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">Python Mobile IDE</span>
