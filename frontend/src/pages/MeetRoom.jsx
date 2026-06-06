@@ -91,6 +91,8 @@ export default function MeetRoom() {
   const [privateTalkTarget, setPrivateTalkTarget] = useState(null);
   const [isMicLocked, setIsMicLocked] = useState(role === 'cadet');
   const [speakRequestPopup, setSpeakRequestPopup] = useState(null);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [mobileDrawerTab, setMobileDrawerTab] = useState('explorer');
 
   useEffect(() => {
     if (userProfile && !editingUserId) {
@@ -627,6 +629,9 @@ img
     setNewFileName('');
     setShowNewFileForm(false);
     setActiveFile(fullName);
+    if (isMobile) {
+      setShowMobileSidebar(false);
+    }
     toast.success(`Created file: ${fullName}`);
   };
 
@@ -686,11 +691,17 @@ img
       {/* 1. Upper Menu Bar */}
       <header className="h-[48px] bg-slate-950/70 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
+          <div 
+            onClick={() => isMobile && setShowMobileSidebar(!showMobileSidebar)}
+            className={`flex items-center gap-2 ${isMobile ? 'cursor-pointer active:opacity-75 hover:opacity-90 transition select-none' : ''}`}
+          >
             <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center p-0.5 flex-shrink-0">
               <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-4.5 w-auto object-contain" />
             </div>
-            <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400">DEVSHAALA Meet</span>
+            <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400 flex items-center gap-1">
+              DEVSHAALA Meet
+              {isMobile && <span className="text-[8px] font-normal text-emerald-500/85 lowercase bg-emerald-500/10 px-1 py-0.5 rounded-md">menu</span>}
+            </span>
           </div>
 
           {/* Menu Options (IDLE Style dropdown triggers) */}
@@ -798,14 +809,36 @@ img
         <aside className="w-[56px] bg-slate-950/40 border-r border-white/5 flex flex-col justify-between items-center py-4 z-30 select-none">
           <div className="flex flex-col gap-5">
             <button
-              onClick={() => setActiveLeftPanel(activeLeftPanel === 'explorer' ? null : 'explorer')}
-              className={`p-3 rounded-2xl transition sidebar-icon ${activeLeftPanel === 'explorer' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => {
+                if (isMobile) {
+                  setMobileDrawerTab('explorer');
+                  setShowMobileSidebar(true);
+                } else {
+                  setActiveLeftPanel(activeLeftPanel === 'explorer' ? null : 'explorer');
+                }
+              }}
+              className={`p-3 rounded-2xl transition sidebar-icon ${
+                isMobile 
+                  ? (showMobileSidebar && mobileDrawerTab === 'explorer' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white')
+                  : (activeLeftPanel === 'explorer' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white')
+              }`}
             >
               <FolderOpen className="w-5 h-5" />
             </button>
             <button
-              onClick={() => setActiveLeftPanel(activeLeftPanel === 'people' ? null : 'people')}
-              className={`p-3 rounded-2xl transition sidebar-icon ${activeLeftPanel === 'people' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white'}`}
+              onClick={() => {
+                if (isMobile) {
+                  setMobileDrawerTab('people');
+                  setShowMobileSidebar(true);
+                } else {
+                  setActiveLeftPanel(activeLeftPanel === 'people' ? null : 'people');
+                }
+              }}
+              className={`p-3 rounded-2xl transition sidebar-icon ${
+                isMobile 
+                  ? (showMobileSidebar && mobileDrawerTab === 'people' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white')
+                  : (activeLeftPanel === 'people' ? 'active text-emerald-400 bg-white/5' : 'text-slate-400 hover:text-white')
+              }`}
             >
               <Users className="w-5 h-5" />
             </button>
@@ -858,9 +891,9 @@ img
           </div>
         </aside>
 
-        {/* B. Slide Panel (Explorer / People lists) */}
+        {/* B. Slide Panel (Explorer / People lists) - Desktop only */}
         <AnimatePresence>
-          {activeLeftPanel && (
+          {!isMobile && activeLeftPanel && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 220, opacity: 1 }}
@@ -1161,7 +1194,8 @@ img
         </main>
 
         {/* D. Right Side Dashboard (3 Videos/Editor card) */}
-        <aside className="w-[300px] bg-slate-950/40 border-l border-white/5 p-4 flex flex-col gap-4 overflow-y-auto select-none">
+        {!isMobile && (
+          <aside className="w-[300px] bg-slate-950/40 border-l border-white/5 p-4 flex flex-col gap-4 overflow-y-auto select-none">
           <div className="flex items-center gap-2 pb-1 border-b border-white/5 mb-1">
             <Eye className="w-4 h-4 text-emerald-400" />
             <span className="text-[10px] font-bold font-orbitron text-slate-400 tracking-wider">WORKSPACE PREVIEWS</span>
@@ -1319,6 +1353,7 @@ img
             </div>
           </div>
         </aside>
+      )}
 
       </div>
 
@@ -1376,6 +1411,239 @@ img
           </div>
         </div>
       )}
+
+      {/* 5. Mobile Explorer & People Drawer overlay */}
+      <AnimatePresence>
+        {isMobile && showMobileSidebar && (
+          <div className="fixed inset-0 z-50 flex overflow-hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMobileSidebar(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-[280px] max-w-[85vw] h-full bg-[#070b19] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto text-left"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                    <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-3.5 w-auto object-contain" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-widest font-orbitron">DEVSHAALA Panel</span>
+                </div>
+                <button 
+                  onClick={() => setShowMobileSidebar(false)}
+                  className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 bg-slate-900/50 p-1 border border-white/5 rounded-xl mb-4">
+                <button 
+                  onClick={() => setMobileDrawerTab('explorer')}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                    mobileDrawerTab === 'explorer' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  Explorer
+                </button>
+                <button 
+                  onClick={() => setMobileDrawerTab('people')}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                    mobileDrawerTab === 'people' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  People ({participants.length})
+                </button>
+              </div>
+
+              {/* Content area */}
+              <div className="flex-1 overflow-y-auto pr-1">
+                {mobileDrawerTab === 'explorer' && (
+                  <div className="flex-1 flex flex-col select-none h-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-[10px] font-bold font-orbitron tracking-wider text-slate-500 uppercase">WORKSPACE FILES</span>
+                      <button onClick={() => setShowNewFileForm(!showNewFileForm)} className="p-1 hover:bg-white/5 rounded text-emerald-400 transition">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Create File Form */}
+                    {showNewFileForm && (
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-white/5 space-y-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder="filename"
+                          value={newFileName}
+                          onChange={(e) => setNewFileName(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/5 rounded-lg px-2 py-1 text-xs text-white"
+                        />
+                        <select 
+                          value={fileType} 
+                          onChange={(e) => setFileType(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/5 rounded-lg px-2 py-1 text-xs text-slate-300"
+                        >
+                          <option value=".py">Python (.py)</option>
+                          <option value=".csv">Dataset (.csv)</option>
+                          <option value=".md">Markdown (.md)</option>
+                          <option value=".txt">Text (.txt)</option>
+                          <option value=".utils">Utils (.utils)</option>
+                        </select>
+                        <button onClick={handleCreateFile} className="w-full bg-emerald-500 text-slate-950 font-bold py-1 rounded-lg text-xs transition">
+                          Create
+                        </button>
+                      </div>
+                    )}
+
+                    {/* File List */}
+                    <div className="space-y-1">
+                      {Object.keys(files).map((name) => (
+                        <div
+                          key={name}
+                          onClick={() => {
+                            setActiveFile(name);
+                            setShowMobileSidebar(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer group transition ${
+                            activeFile === name 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10' 
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileCode className="w-3.5 h-3.5 opacity-70" />
+                            <span className="truncate">{name}</span>
+                          </div>
+                          {name !== 'main.py' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteFile(name); }}
+                              className="p-0.5 hover:bg-red-500/15 rounded text-slate-500 hover:text-red-400 opacity-100 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {mobileDrawerTab === 'people' && (
+                  <div className="flex-1 flex flex-col h-full animate-fadeIn">
+                    <span className="text-[10px] font-bold font-orbitron tracking-wider text-slate-500 mb-4 uppercase">PARTICIPANTS ({participants.length})</span>
+                    <div className="space-y-2">
+                      {participants.map((p) => {
+                        const isHandUp = raisedHands[p.userId] || false;
+                        const isHost = p.role === 'commandant';
+
+                        return (
+                          <div key={p.userId} className="flex items-center justify-between p-2 rounded-xl bg-slate-900/40 border border-white/5 text-xs">
+                            <div className="flex flex-col truncate pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-200 truncate">{p.name}</span>
+                                {isHandUp && <Hand className="w-3 h-3 text-yellow-400 fill-yellow-400 animate-bounce" />}
+                              </div>
+                              <span className="text-[9px] text-slate-500 uppercase font-semibold">
+                                {isHost ? 'Instructor' : 'Cadet'}
+                              </span>
+                            </div>
+
+                            {/* Commandant Controls: Remove/Pin/Edit Cadet */}
+                            {!isHost && role === 'commandant' && (
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    const isActive = privateTalkTarget === p.userId;
+                                    const targetId = isActive ? null : p.userId;
+                                    setPrivateTalkTarget(targetId);
+
+                                    if (wsRef.current?.readyState === WebSocket.OPEN) {
+                                      wsRef.current.send(JSON.stringify({
+                                        type: 'commandant-private-speak',
+                                        active: !isActive,
+                                        target: p.userId
+                                      }));
+                                    }
+
+                                    if (!isActive) {
+                                      toast.success(`Speaking privately to ${p.name}`);
+                                    } else {
+                                      toast.success("Returned to public speaking mode");
+                                    }
+                                  }}
+                                  title="Talk privately"
+                                  className={`p-1 rounded transition ${
+                                    privateTalkTarget === p.userId 
+                                      ? 'bg-yellow-500/20 text-yellow-400' 
+                                      : 'hover:bg-white/5 text-slate-400'
+                                  }`}
+                                >
+                                  <Mic className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingUserId(p.userId);
+                                    toast.success(`Now editing ${p.name}'s code`);
+                                    setShowMobileSidebar(false);
+                                  }}
+                                  title="Edit code"
+                                  className={`p-1 rounded transition ${
+                                    editingUserId === p.userId 
+                                      ? 'bg-purple-500/20 text-purple-400' 
+                                      : 'hover:bg-white/5 text-slate-400'
+                                  }`}
+                                >
+                                  <FileCode className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (pinnedCadetId1 === p.userId) setPinnedCadetId1(null);
+                                    else if (pinnedCadetId2 === p.userId) setPinnedCadetId2(null);
+                                    else if (!pinnedCadetId1) setPinnedCadetId1(p.userId);
+                                    else setPinnedCadetId2(p.userId);
+                                  }}
+                                  title="Pin stream"
+                                  className={`p-1 rounded transition ${
+                                    pinnedCadetId1 === p.userId || pinnedCadetId2 === p.userId 
+                                      ? 'bg-emerald-500/20 text-emerald-400' 
+                                      : 'hover:bg-white/5 text-slate-400'
+                                  }`}
+                                >
+                                  <Pin className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveCadet(p.userId)}
+                                  title="Kick student"
+                                  className="p-1 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded transition"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

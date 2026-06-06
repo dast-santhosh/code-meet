@@ -78,12 +78,12 @@ A premium virtual classroom app combining real-time multi-peer video meetings an
 
 ## 🌐 Cloud Deployment Walkthrough (Vercel + Render)
 
-Because **Vercel** operates serverless functions, it does not support long-running, stateful WebSocket connections. Therefore, the FastAPI WebSocket backend must be hosted on a persistent container provider like **Render** or **Railway**.
+Because **Vercel** operates serverless functions, it does not support long-running, stateful WebSocket connections. Therefore, the FastAPI WebSocket backend must be hosted on a persistent container provider like **Render**.
 
 ### Step A: Deploy the Backend on Render
 1. Create a free account on [Render](https://render.com).
 2. Click **New** -> **Web Service**.
-3. Select your GitHub repository. Set the root directory/path to `code&meet/backend`.
+3. Select your GitHub repository. Set the root directory/path to `codemeet/backend` (or upload using the root `render.yaml` blueprint).
 4. Configure the build parameters:
    - **Runtime:** `Python`
    - **Build Command:** `pip install -r requirements.txt`
@@ -96,9 +96,8 @@ Because **Vercel** operates serverless functions, it does not support long-runni
 2. In the Vercel project settings, navigate to **Environment Variables** and define:
    - Add the following variables:
      - **Key:** `VITE_WS_URL`
-     - **Value:** The secure WebSocket URL pointing to your Render or Railway backend (replace `https://` with `wss://`):
-       - *For Render:* `wss://devshaala-meet-backend.onrender.com`
-       - *For Railway:* `wss://devshaala-meet-backend.up.railway.app`
+     - **Value:** The secure WebSocket URL pointing to your Render backend (replace `https://` with `wss://`):
+       - `wss://devshaala-meet-backend.onrender.com`
      - **Key:** `VITE_GROQ_API_KEY`
      - **Value:** Your Groq Cloud API Key (for the draggable AI Tutor chat widget).
 3. **Deploy:** Click **Deploy**. The React client will build and securely connect to the hosted WebSockets relay server for real-time video/audio signaling and Yjs sync!
