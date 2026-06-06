@@ -62,7 +62,10 @@ export default function AIPortal() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to contact tutor service");
+        if (response.status === 401) {
+          throw new Error("Invalid or unauthorized Groq API Key (401). Please verify your VITE_GROQ_API_KEY environment variable in settings.");
+        }
+        throw new Error(`Failed to contact tutor service (Status: ${response.status})`);
       }
 
       const data = await response.json();
@@ -71,7 +74,7 @@ export default function AIPortal() {
     } catch (err) {
       setMessages(prev => [
         ...prev, 
-        { role: 'assistant', content: "[Error] Failed to contact AI Tutor. Please check your internet connection." }
+        { role: 'assistant', content: `[Error] Failed to contact AI Tutor: ${err.message}` }
       ]);
     } finally {
       setLoading(false);
