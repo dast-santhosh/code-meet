@@ -112,6 +112,76 @@ async def websocket_endpoint(
                     }
                 )
                 
+            elif msg_type == "code-update":
+                if room_id in manager.rooms and user_id in manager.rooms[room_id]["users"]:
+                    manager.rooms[room_id]["users"][user_id]["code"] = data.get("code", "")
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "code-update",
+                        "senderId": user_id,
+                        "code": data.get("code", "")
+                    },
+                    exclude_user_id=user_id
+                )
+                
+            elif msg_type == "media-toggle":
+                if room_id in manager.rooms and user_id in manager.rooms[room_id]["users"]:
+                    manager.rooms[room_id]["users"][user_id]["videoMuted"] = data.get("videoMuted", False)
+                    manager.rooms[room_id]["users"][user_id]["micMuted"] = data.get("micMuted", False)
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "media-toggle",
+                        "senderId": user_id,
+                        "videoMuted": data.get("videoMuted", False),
+                        "micMuted": data.get("micMuted", False)
+                    },
+                    exclude_user_id=user_id
+                )
+                
+            elif msg_type == "commandant-private-speak":
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "commandant-private-speak",
+                        "active": data.get("active", False),
+                        "target": data.get("target")
+                    },
+                    exclude_user_id=user_id
+                )
+                
+            elif msg_type == "request-speak":
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "request-speak",
+                        "senderId": user_id,
+                        "senderName": name
+                    },
+                    exclude_user_id=user_id
+                )
+                
+            elif msg_type == "grant-speak":
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "grant-speak",
+                        "target": data.get("target")
+                    },
+                    exclude_user_id=user_id
+                )
+                
+            elif msg_type == "revoke-speak":
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "revoke-speak",
+                        "target": data.get("target")
+                    },
+                    exclude_user_id=user_id
+                )
+
             elif msg_type == "remove-user":
                 # Eviction command (Commandant only)
                 if role == "commandant":

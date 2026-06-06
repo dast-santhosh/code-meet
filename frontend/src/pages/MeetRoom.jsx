@@ -12,7 +12,7 @@ import JSZip from 'jszip';
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare, Users, Hand, Play,
   FolderOpen, Search, Bot, HelpCircle, FileCode, Check, BookOpen,
-  Trash2, Plus, Terminal, RefreshCw, Pin, Eye, VolumeX, UserPlus, UserMinus, Lock, Unlock
+  Trash2, Plus, Terminal, RefreshCw, Pin, Eye, VolumeX, UserPlus, UserMinus, Lock, Unlock, X
 } from 'lucide-react';
 
 // Components
@@ -80,11 +80,9 @@ export default function MeetRoom() {
   // Chat message stores
   const [chatMessages, setChatMessages] = useState([]);
 
-  // Right-Dash rotation & pin states
-  const [pinnedCadetId1, setPinnedCadetId1] = useState(null);
-  const [pinnedCadetId2, setPinnedCadetId2] = useState(null);
-  const [rotationIndex, setRotationIndex] = useState(0);
-  const [editingUserId, setEditingUserId] = useState(null);
+  // Peer workspaces & Popups
+  const [peerCodes, setPeerCodes] = useState({}); // { userId: code }
+  const [selectedPeerForPopup, setSelectedPeerForPopup] = useState(null);
   
   // Mobile & Audios Control States
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -94,12 +92,6 @@ export default function MeetRoom() {
   const [speakRequestPopup, setSpeakRequestPopup] = useState(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [mobileDrawerTab, setMobileDrawerTab] = useState('explorer');
-
-  useEffect(() => {
-    if (userProfile && !editingUserId) {
-      setEditingUserId(userProfile.uid);
-    }
-  }, [userProfile]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -132,26 +124,7 @@ export default function MeetRoom() {
     initPyodide();
   }, []);
 
-  // Sync Yjs doc file edits to local state
-  useEffect(() => {
-    const ymap = yDocRef.current.getMap('explorer_files');
-    
-    // Set initial files in map if empty
-    if (ymap.size === 0 && role === 'commandant') {
-      Object.entries(files).forEach(([name, content]) => {
-        ymap.set(name, content);
-      });
-    }
-
-    // Sync changes to local state
-    ymap.observe(() => {
-      const currentFiles = {};
-      ymap.forEach((val, key) => {
-        currentFiles[key] = val;
-      });
-      setFiles(currentFiles);
-    });
-  }, [role]);
+  // File state is managed locally for each workspace
 
   // Firestore Session Safety check
   useEffect(() => {
@@ -232,6 +205,11 @@ export default function MeetRoom() {
 
     socket.onopen = () => {
       setWsConnected(true);
+      // Send initial workspace code of main.py
+      socket.send(JSON.stringify({
+        type: 'code-update',
+        code: files['main.py']
+      }));
     };
 
     socket.onmessage = async (event) => {
@@ -242,13 +220,14 @@ export default function MeetRoom() {
           setParticipants(data.users);
           setChatMessages(data.chat_history);
           
-          // Yjs document sync catch up
-          if (data.yjs_updates && data.yjs_updates.length > 0) {
-            data.yjs_updates.forEach(upBase64 => {
-              const binary = Uint8Array.from(atob(upBase64), c => c.charCodeAt(0));
-              Y.applyUpdate(yDocRef.current, binary);
+          // Sync peer codes from user list
+          const initialCodes = {};
+          if (data.users) {
+            data.users.forEach(u => {
+              initialCodes[u.userId] = u.code || "";
             });
           }
+          setPeerCodes(initialCodes);
 
           // Initiate WebRTC offers to everyone already in the room
           data.users.forEach(async (peer) => {
@@ -259,7 +238,20 @@ export default function MeetRoom() {
           break;
 
         case 'peer-joined':
-          setParticipants(prev => [...prev, { userId: data.userId, name: data.name, role: data.role }]);
+          setParticipants(prev => {
+            if (prev.some(p => p.userId === data.userId)) return prev;
+            return [...prev, {
+              userId: data.userId,
+              name: data.name,
+              role: data.role,
+              videoMuted: data.videoMuted || false,
+              micMuted: data.micMuted || false
+            }];
+          });
+          setPeerCodes(prev => ({
+            ...prev,
+            [data.userId]: data.code || ""
+          }));
           toast(`${data.name} joined class`, {
             icon: <UserPlus className="w-5 h-5 text-sky-400" />
           });
@@ -267,6 +259,11 @@ export default function MeetRoom() {
 
         case 'peer-left':
           setParticipants(prev => prev.filter(p => p.userId !== data.userId));
+          setPeerCodes(prev => {
+            const copy = { ...prev };
+            delete copy[data.userId];
+            return copy;
+          });
           // Clean up remote stream and RTC connections
           if (peersRef.current[data.userId]) {
             peersRef.current[data.userId].close();
@@ -302,11 +299,20 @@ export default function MeetRoom() {
           }
           break;
 
-        case 'yjs-update':
-          if (data.senderId !== userProfile.uid) {
-            const binary = Uint8Array.from(atob(data.update), c => c.charCodeAt(0));
-            Y.applyUpdate(yDocRef.current, binary);
-          }
+        case 'code-update':
+          setPeerCodes(prev => ({
+            ...prev,
+            [data.senderId]: data.code
+          }));
+          break;
+
+        case 'media-toggle':
+          setParticipants(prev => prev.map(p => {
+            if (p.userId === data.senderId) {
+              return { ...p, videoMuted: data.videoMuted, micMuted: data.micMuted };
+            }
+            return p;
+          }));
           break;
 
         case 'chat-message':
@@ -400,34 +406,11 @@ export default function MeetRoom() {
       }
     };
 
-    // Keep Yjs updates synched over WebSockets
-    yDocRef.current.on('update', (update) => {
-      const updateBase64 = btoa(String.fromCharCode(...update));
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: 'yjs-update',
-          update: updateBase64
-        }));
-      }
-    });
-
     return () => {
       socket.close();
       Object.values(peersRef.current).forEach(pc => pc.close());
     };
   }, [userProfile, localStream]);
-
-  // Auto-rotating Cadet views on Right Dash (every 10 seconds)
-  useEffect(() => {
-    const cadets = participants.filter(p => p.role === 'cadet');
-    if (cadets.length <= 2) return;
-
-    const interval = setInterval(() => {
-      setRotationIndex(prev => (prev + 1) % cadets.length);
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [participants]);
 
   // Create an RTCPeerConnection for WebRTC video/audio mesh
   const createPeerConnection = async (peerId, isOfferor) => {
@@ -507,8 +490,18 @@ export default function MeetRoom() {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setMicMuted(!audioTrack.enabled);
+        const nextEnabled = !audioTrack.enabled;
+        audioTrack.enabled = nextEnabled;
+        setMicMuted(!nextEnabled);
+
+        // Notify other peers of mic toggle
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'media-toggle',
+            videoMuted: videoMuted,
+            micMuted: !nextEnabled
+          }));
+        }
       }
     }
   };
@@ -517,8 +510,19 @@ export default function MeetRoom() {
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setVideoMuted(!videoTrack.enabled);
+        const nextEnabled = !videoTrack.enabled;
+        videoTrack.enabled = nextEnabled;
+        const newVideoMuted = !nextEnabled;
+        setVideoMuted(newVideoMuted);
+
+        // Notify other peers of camera toggle
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'media-toggle',
+            videoMuted: newVideoMuted,
+            micMuted: micMuted
+          }));
+        }
       }
     }
   };
@@ -650,9 +654,10 @@ img
     if (!newFileName.trim()) return;
     const fullName = newFileName.trim() + fileType;
     
-    // Add to shared files map
-    const ymap = yDocRef.current.getMap('explorer_files');
-    ymap.set(fullName, `# Collaborative ${fullName}\n`);
+    setFiles(prev => {
+      const updated = { ...prev, [fullName]: `# ${fullName}\n` };
+      return updated;
+    });
     
     setNewFileName('');
     setShowNewFileForm(false);
@@ -669,49 +674,41 @@ img
       toast.error("Cannot delete the core main.py file");
       return;
     }
-    const ymap = yDocRef.current.getMap('explorer_files');
-    ymap.delete(fileName);
+    setFiles(prev => {
+      const updated = { ...prev };
+      delete updated[fileName];
+      return updated;
+    });
     if (activeFile === fileName) {
       setActiveFile('main.py');
     }
     toast.success(`Deleted file: ${fileName}`);
   };
 
+  const broadcastCodeUpdate = (code) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'code-update',
+        code: code
+      }));
+    }
+  };
+
   // Get content updater callback for editor
   const handleUpdateFileContent = (content) => {
-    const ymap = yDocRef.current.getMap('explorer_files');
-    ymap.set(activeFile, content);
+    setFiles(prev => {
+      const updated = {
+        ...prev,
+        [activeFile]: content
+      };
+      if (activeFile === 'main.py') {
+        broadcastCodeUpdate(content);
+      }
+      return updated;
+    });
   };
 
-  // Get slots for cadet grid
-  const getCadetGridSlots = () => {
-    const cadets = participants.filter(p => p.role === 'cadet');
-    if (cadets.length === 0) return [null, null];
-
-    let cadet1 = null;
-    let cadet2 = null;
-
-    if (pinnedCadetId1) {
-      cadet1 = cadets.find(c => c.userId === pinnedCadetId1) || null;
-    }
-    if (pinnedCadetId2) {
-      cadet2 = cadets.find(c => c.userId === pinnedCadetId2) || null;
-    }
-
-    // If slots are unpinned, auto-rotate cadets
-    if (!cadet1 && cadets.length > 0) {
-      cadet1 = cadets[rotationIndex % cadets.length];
-    }
-    if (!cadet2 && cadets.length > 1) {
-      // Pick next cadet
-      cadet2 = cadets[(rotationIndex + 1) % cadets.length];
-    }
-
-    return [cadet1, cadet2];
-  };
-
-  const commandant = participants.find(p => p.role === 'commandant');
-  const [slotCadet1, slotCadet2] = getCadetGridSlots();
+  // Previews loop helper
 
   return (
     <div className="h-screen flex flex-col bg-[#080c14] text-slate-100 overflow-hidden font-sans">
@@ -1015,7 +1012,7 @@ img
                             </span>
                           </div>
 
-                          {/* Commandant Controls: Remove/Pin/Edit Cadet */}
+                          {/* Commandant Controls: Remove Cadet / Whisper */}
                           {!isHost && role === 'commandant' && (
                             <div className="flex gap-1">
                               <button
@@ -1046,36 +1043,6 @@ img
                                 }`}
                               >
                                 <Mic className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingUserId(p.userId);
-                                  toast.success(`Now editing ${p.name}'s code`);
-                                }}
-                                title="Edit code"
-                                className={`p-1 rounded transition ${
-                                  editingUserId === p.userId 
-                                    ? 'bg-purple-500/20 text-purple-400' 
-                                    : 'hover:bg-white/5 text-slate-400'
-                                }`}
-                              >
-                                <FileCode className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (pinnedCadetId1 === p.userId) setPinnedCadetId1(null);
-                                  else if (pinnedCadetId2 === p.userId) setPinnedCadetId2(null);
-                                  else if (!pinnedCadetId1) setPinnedCadetId1(p.userId);
-                                  else setPinnedCadetId2(p.userId);
-                                }}
-                                title="Pin stream"
-                                className={`p-1 rounded transition ${
-                                  pinnedCadetId1 === p.userId || pinnedCadetId2 === p.userId 
-                                    ? 'bg-emerald-500/20 text-emerald-400' 
-                                    : 'hover:bg-white/5 text-slate-400'
-                                }`}
-                              >
-                                <Pin className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={() => handleRemoveCadet(p.userId)}
@@ -1132,18 +1099,12 @@ img
             </div>
           </div>
 
-          {/* Collaborative Monaco Editor container */}
+          {/* Monaco Editor container */}
           <div className="flex-1 min-h-[150px] relative">
             <CodeEditor
-              yText={yDocRef.current.getText((editingUserId || userProfile?.uid) + "_" + activeFile)}
-              readOnly={role !== 'commandant' && editingUserId !== userProfile?.uid}
-              onChange={(val) => {
-                // Keep file dictionary updated locally in backup state
-                setFiles(prev => ({
-                  ...prev,
-                  [activeFile]: val
-                }));
-              }}
+              readOnly={false}
+              value={files[activeFile] || ""}
+              onChange={handleUpdateFileContent}
             />
 
             {/* Floating Local Stream video player (Desktop only) */}
@@ -1219,169 +1180,62 @@ img
               </div>
             </section>
           )}
-        </main>
-
-        {/* D. Right Side Dashboard (3 Videos/Editor card) */}
+        </main>        {/* D. Right Side Dashboard */}
         {!isMobile && (
           <aside className="w-[300px] bg-slate-950/40 border-l border-white/5 p-4 flex flex-col gap-4 overflow-y-auto select-none">
-          <div className="flex items-center gap-2 pb-1 border-b border-white/5 mb-1">
-            <Eye className="w-4 h-4 text-emerald-400" />
-            <span className="text-[10px] font-bold font-orbitron text-slate-400 tracking-wider">WORKSPACE PREVIEWS</span>
-          </div>
-
-          {/* Slot 1: Commandant (Permanent) */}
-          <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 flex flex-col h-[180px] relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-red-400 uppercase">Commandant (Instructor)</span>
-              <span className="text-[9px] text-slate-500">{commandant?.name || "Offline"}</span>
+            <div className="flex items-center gap-2 pb-1 border-b border-white/5 mb-1">
+              <Eye className="w-4 h-4 text-emerald-400" />
+              <span className="text-[10px] font-bold font-orbitron text-slate-400 tracking-wider">WORKSPACE PREVIEWS</span>
             </div>
-            
-            <div className="flex-1 rounded-lg overflow-hidden border border-white/5 relative">
-              {commandant ? (
-                <CodeEditor
-                  readOnly={true}
-                  value={files[activeFile] || ""} // Fallback representation of workspace progress
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-slate-500 italic bg-slate-950/20">
-                  Commandant offline
-                </div>
-              )}
 
-              {/* Commandant Stream Overlay (BR) */}
-              {commandant && remoteStreams[commandant.userId] && (
-                <ParticipantVideo
-                  stream={remoteStreams[commandant.userId]}
-                  name={commandant.name}
-                  isMuted={false}
-                  isCameraOn={true}
-                  isHandRaised={false}
-                  isLocal={false}
-                  className="absolute bottom-1 right-1 w-[80px] h-[60px] border border-red-500"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Slot 2: Cadet A (Rotating or pinned) */}
-          <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 flex flex-col h-[180px] relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-sky-400 uppercase flex items-center gap-1">
-                {pinnedCadetId1 ? (
-                  <>
-                    <Pin className="w-2.5 h-2.5 fill-sky-400 text-sky-400 rotate-45" />
-                    <span>Pinned Cadet</span>
-                  </>
-                ) : (
-                  <span>Rotating Cadet</span>
-                )}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-slate-500 truncate max-w-[100px]">
-                  {slotCadet1 ? slotCadet1.name : "Waiting for cadet..."}
-                </span>
-                {slotCadet1 && role === 'commandant' && (
-                  <button
-                    onClick={() => {
-                      setEditingUserId(slotCadet1.userId);
-                      toast.success(`Now editing ${slotCadet1.name}'s code`);
-                    }}
-                    title="Edit Code"
-                    className="text-slate-400 hover:text-emerald-400 p-0.5 rounded transition"
-                  >
-                    <FileCode className="w-3.5 h-3.5" />
-                  </button>
-                )}
+            {participants.filter(p => p.userId !== userProfile?.uid).length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[10px] text-slate-500 italic bg-slate-950/20 rounded-xl p-4">
+                No other participants online
               </div>
-            </div>
-            
-            <div className="flex-1 rounded-lg overflow-hidden border border-white/5 relative">
-              {slotCadet1 ? (
-                <>
-                  <CodeEditor
-                    readOnly={true}
-                    value={files[activeFile]} // Display shared status
-                  />
-                  {remoteStreams[slotCadet1.userId] && (
-                    <ParticipantVideo
-                      stream={remoteStreams[slotCadet1.userId]}
-                      name={slotCadet1.name}
-                      isMuted={false}
-                      isCameraOn={true}
-                      isHandRaised={raisedHands[slotCadet1.userId]}
-                      isLocal={false}
-                      className="absolute bottom-1 right-1 w-[80px] h-[60px] border border-sky-500"
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-slate-500 italic bg-slate-950/20">
-                  No other cadet online
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Slot 3: Cadet B (Rotating or pinned) */}
-          <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 flex flex-col h-[180px] relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-sky-400 uppercase flex items-center gap-1">
-                {pinnedCadetId2 ? (
-                  <>
-                    <Pin className="w-2.5 h-2.5 fill-sky-400 text-sky-400 rotate-45" />
-                    <span>Pinned Cadet</span>
-                  </>
-                ) : (
-                  <span>Rotating Cadet</span>
-                )}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-slate-500 truncate max-w-[100px]">
-                  {slotCadet2 ? slotCadet2.name : "Waiting for cadet..."}
-                </span>
-                {slotCadet2 && role === 'commandant' && (
-                  <button
-                    onClick={() => {
-                      setEditingUserId(slotCadet2.userId);
-                      toast.success(`Now editing ${slotCadet2.name}'s code`);
-                    }}
-                    title="Edit Code"
-                    className="text-slate-400 hover:text-emerald-400 p-0.5 rounded transition"
-                  >
-                    <FileCode className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex-1 rounded-lg overflow-hidden border border-white/5 relative">
-              {slotCadet2 ? (
-                <>
-                  <CodeEditor
-                    readOnly={true}
-                    value={files[activeFile]}
-                  />
-                  {remoteStreams[slotCadet2.userId] && (
-                    <ParticipantVideo
-                      stream={remoteStreams[slotCadet2.userId]}
-                      name={slotCadet2.name}
-                      isMuted={false}
-                      isCameraOn={true}
-                      isHandRaised={raisedHands[slotCadet2.userId]}
-                      isLocal={false}
-                      className="absolute bottom-1 right-1 w-[80px] h-[60px] border border-sky-500"
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-slate-500 italic bg-slate-950/20">
-                  No other cadet online
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
-      )}
+            ) : (
+              participants
+                .filter(p => p.userId !== userProfile?.uid)
+                .map((p) => {
+                  const hasVideo = !p.videoMuted && remoteStreams[p.userId];
+                  
+                  return (
+                    <div key={p.userId} className="w-full h-[180px] rounded-xl overflow-hidden relative border border-white/5 bg-slate-900 flex flex-col group transition hover:border-emerald-500/30">
+                      {hasVideo ? (
+                        <div
+                          onClick={() => setSelectedPeerForPopup(p)}
+                          className="w-full h-full cursor-pointer relative"
+                        >
+                          <ParticipantVideo
+                            stream={remoteStreams[p.userId]}
+                            name=""
+                            isMuted={p.micMuted}
+                            isCameraOn={true}
+                            isHandRaised={raisedHands[p.userId]}
+                            isLocal={false}
+                            className="w-full h-full object-cover border-0 rounded-none animate-fadeIn"
+                          />
+                          <div className="absolute bottom-2 left-2 text-[10px] font-bold text-white bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm z-20">
+                            {p.name}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full relative">
+                          <CodeEditor
+                            readOnly={true}
+                            value={peerCodes[p.userId] || "# Online"}
+                            showLineNumbers={false}
+                          />
+                          <div className="absolute bottom-2 left-2 text-[10px] font-bold text-white bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm z-20 pointer-events-none">
+                            {p.name}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+            )}
+          </aside>
+        )}
 
       </div>
 
@@ -1399,6 +1253,33 @@ img
         isOpen={showDocsModal}
         onClose={() => setShowDocsModal(false)}
       />
+
+      {/* 5. Neuomorphic Peer Code Popup (only main.py) */}
+      {selectedPeerForPopup && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5 w-[500px] max-w-[90vw] h-[400px] flex flex-col space-y-4 shadow-[12px_12px_24px_#05080f,-12px_-12px_24px_#192645]">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex flex-col text-left">
+                <span className="text-xs font-bold text-white uppercase tracking-wider font-orbitron">{selectedPeerForPopup.name}'s Workspace</span>
+                <span className="text-[9px] text-slate-400 font-mono">main.py</span>
+              </div>
+              <button
+                onClick={() => setSelectedPeerForPopup(null)}
+                className="p-1.5 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition shadow-[4px_4px_8px_#05080f,-4px_-4px_8px_#192645] active:scale-95"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden shadow-[inset_6px_6px_12px_#05080f,inset_-6px_-6px_12px_#192645] bg-[#0c1222]/50 p-2">
+              <CodeEditor
+                readOnly={true}
+                value={peerCodes[selectedPeerForPopup.userId] || "# Online\n# No code updates recorded yet"}
+                showLineNumbers={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Commandant Speak Request Popup */}
       {speakRequestPopup && role === 'commandant' && (
@@ -1588,79 +1469,47 @@ img
                                 {isHost ? 'Instructor' : 'Cadet'}
                               </span>
                             </div>
+                            {/* Commandant Controls: Remove Cadet / Whisper */}
+                             {!isHost && role === 'commandant' && (
+                               <div className="flex gap-1 flex-shrink-0">
+                                 <button
+                                   onClick={() => {
+                                     const isActive = privateTalkTarget === p.userId;
+                                     const targetId = isActive ? null : p.userId;
+                                     setPrivateTalkTarget(targetId);
 
-                            {/* Commandant Controls: Remove/Pin/Edit Cadet */}
-                            {!isHost && role === 'commandant' && (
-                              <div className="flex gap-1 flex-shrink-0">
-                                <button
-                                  onClick={() => {
-                                    const isActive = privateTalkTarget === p.userId;
-                                    const targetId = isActive ? null : p.userId;
-                                    setPrivateTalkTarget(targetId);
+                                     if (wsRef.current?.readyState === WebSocket.OPEN) {
+                                       wsRef.current.send(JSON.stringify({
+                                         type: 'commandant-private-speak',
+                                         active: !isActive,
+                                         target: p.userId
+                                       }));
+                                     }
 
-                                    if (wsRef.current?.readyState === WebSocket.OPEN) {
-                                      wsRef.current.send(JSON.stringify({
-                                        type: 'commandant-private-speak',
-                                        active: !isActive,
-                                        target: p.userId
-                                      }));
-                                    }
-
-                                    if (!isActive) {
-                                      toast.success(`Speaking privately to ${p.name}`);
-                                    } else {
-                                      toast.success("Returned to public speaking mode");
-                                    }
-                                  }}
-                                  title="Talk privately"
-                                  className={`p-1 rounded transition ${
-                                    privateTalkTarget === p.userId 
-                                      ? 'bg-yellow-500/20 text-yellow-400' 
-                                      : 'hover:bg-white/5 text-slate-400'
-                                  }`}
-                                >
-                                  <Mic className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingUserId(p.userId);
-                                    toast.success(`Now editing ${p.name}'s code`);
-                                    setShowMobileSidebar(false);
-                                  }}
-                                  title="Edit code"
-                                  className={`p-1 rounded transition ${
-                                    editingUserId === p.userId 
-                                      ? 'bg-purple-500/20 text-purple-400' 
-                                      : 'hover:bg-white/5 text-slate-400'
-                                  }`}
-                                >
-                                  <FileCode className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (pinnedCadetId1 === p.userId) setPinnedCadetId1(null);
-                                    else if (pinnedCadetId2 === p.userId) setPinnedCadetId2(null);
-                                    else if (!pinnedCadetId1) setPinnedCadetId1(p.userId);
-                                    else setPinnedCadetId2(p.userId);
-                                  }}
-                                  title="Pin stream"
-                                  className={`p-1 rounded transition ${
-                                    pinnedCadetId1 === p.userId || pinnedCadetId2 === p.userId 
-                                      ? 'bg-emerald-500/20 text-emerald-400' 
-                                      : 'hover:bg-white/5 text-slate-400'
-                                  }`}
-                                >
-                                  <Pin className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleRemoveCadet(p.userId)}
-                                  title="Kick student"
-                                  className="p-1 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded transition"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
+                                     if (!isActive) {
+                                       toast.success(`Speaking privately to ${p.name}`);
+                                     } else {
+                                       toast.success("Returned to public speaking mode");
+                                     }
+                                   }}
+                                   title="Talk privately"
+                                   className={`p-1 rounded transition ${
+                                     privateTalkTarget === p.userId 
+                                       ? 'bg-yellow-500/20 text-yellow-400' 
+                                       : 'hover:bg-white/5 text-slate-400'
+                                   }`}
+                                 >
+                                   <Mic className="w-3.5 h-3.5" />
+                                 </button>
+                                 <button
+                                   onClick={() => handleRemoveCadet(p.userId)}
+                                   title="Kick student"
+                                   className="p-1 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded transition"
+                                 >
+                                   <X className="w-3.5 h-3.5" />
+                                 </button>
+                               </div>
+                             )}
                           </div>
                         );
                       })}

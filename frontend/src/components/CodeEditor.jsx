@@ -4,7 +4,7 @@ import * as Y from 'yjs';
 import { MonacoBinding } from 'y-monaco';
 import useAppStore from '../store';
 
-export default function CodeEditor({ yText, readOnly = false, value = "", onChange = null }) {
+export default function CodeEditor({ yText, readOnly = false, value = "", onChange = null, showLineNumbers = true }) {
   const editorRef = useRef(null);
   const bindingRef = useRef(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -245,7 +245,8 @@ export default function CodeEditor({ yText, readOnly = false, value = "", onChan
           lineHeight: 20,
           scrollBeyondLastLine: false,
           wordWrap: "on",
-          padding: { top: 12, bottom: 12 }
+          padding: { top: 12, bottom: 12 },
+          lineNumbers: showLineNumbers ? "on" : "off"
         }}
         onMount={handleEditorDidMount}
         onChange={handleEditorChange}

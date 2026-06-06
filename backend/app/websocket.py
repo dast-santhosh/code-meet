@@ -24,12 +24,22 @@ class ConnectionManager:
         room["users"][user_id] = {
             "ws": websocket,
             "name": name,
-            "role": role
+            "role": role,
+            "videoMuted": False,
+            "micMuted": True if role == "cadet" else False,
+            "code": ""
         }
         
         # 1. Send active users list, Yjs update history, and Chat history to the newly joined user
         current_users = [
-            {"userId": uid, "name": info["name"], "role": info["role"]}
+            {
+                "userId": uid, 
+                "name": info["name"], 
+                "role": info["role"],
+                "videoMuted": info.get("videoMuted", False),
+                "micMuted": info.get("micMuted", False),
+                "code": info.get("code", "")
+            }
             for uid, info in room["users"].items()
         ]
         
@@ -47,7 +57,10 @@ class ConnectionManager:
                 "type": "peer-joined",
                 "userId": user_id,
                 "name": name,
-                "role": role
+                "role": role,
+                "videoMuted": room["users"][user_id]["videoMuted"],
+                "micMuted": room["users"][user_id]["micMuted"],
+                "code": room["users"][user_id]["code"]
             },
             exclude_user_id=user_id
         )
