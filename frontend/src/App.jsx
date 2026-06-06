@@ -10,6 +10,8 @@ import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MeetRoom from './pages/MeetRoom';
+import MobileIDE from './pages/MobileIDE';
+
 
 export default function App() {
   const { setUser, setUserProfile, setAuthLoading, authLoading, user, editorTheme } = useAppStore();
@@ -61,7 +63,9 @@ export default function App() {
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
           <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" replace />} />
           <Route path="/meet/:squadronId" element={user ? <MeetRoom /> : <Navigate to="/login" replace />} />
+          <Route path="/ide" element={<MobileIDE />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
+
         </Routes>
       </BrowserRouter>
       <Toaster 
