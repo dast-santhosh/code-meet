@@ -7,6 +7,8 @@ class Settings:
         "http://localhost:5174",
         "http://localhost:3000",
         "https://code-meet.vercel.app",
+        "https://codemeet.devshaala.in",
+        "https://codemeet-devshaala.vercel.app",
         "*"
     ]
 

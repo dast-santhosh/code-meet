@@ -36,6 +36,7 @@ def get_active_rooms():
     return active_rooms
 
 @app.websocket("/ws/meet/{room_id}")
+@app.websocket("/meet/{room_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     room_id: str,
