@@ -210,12 +210,20 @@ export default function MeetRoom() {
   useEffect(() => {
     if (!userProfile || !localStreamRef.current) return;
 
-    const wsUrl = import.meta.env.VITE_WS_URL || `ws://localhost:8000`;
-    const protocol = wsUrl.startsWith('https') ? 'wss' : wsUrl.startsWith('http') ? 'ws' : 'ws';
-    const cleanWsUrl = wsUrl.replace(/^https?:\/\//, '');
+    let wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    
+    // Normalize protocol to ensure correct WebSocket prefixes (ws:// or wss://)
+    if (wsUrl.startsWith('https://')) {
+      wsUrl = wsUrl.replace('https://', 'wss://');
+    } else if (wsUrl.startsWith('http://')) {
+      wsUrl = wsUrl.replace('http://', 'ws://');
+    } else if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+      const isSecure = window.location.protocol === 'https:';
+      wsUrl = (isSecure ? 'wss://' : 'ws://') + wsUrl;
+    }
 
     const socket = new WebSocket(
-      `${protocol}://${cleanWsUrl}/ws/meet/${squadronId}?user_id=${userProfile.uid}&name=${encodeURIComponent(userProfile.name)}&role=${role}`
+      `${wsUrl}/ws/meet/${squadronId}?user_id=${userProfile.uid}&name=${encodeURIComponent(userProfile.name)}&role=${role}`
     );
     wsRef.current = socket;
 
