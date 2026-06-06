@@ -128,6 +128,8 @@ export default function MeetRoom() {
   const localScreenStreamRef = useRef(null);
   const screenPeersRef = useRef({});
 
+  const commandant = participants.find(p => p.role === 'commandant');
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
@@ -139,14 +141,28 @@ export default function MeetRoom() {
     const initPyodide = async () => {
       try {
         if (window.loadPyodide) {
-          // Preload WASM engine
-          setConsoleOutput("Initializing DevShaala Python engine (WASM)...");
-          const pyInst = await window.loadPyodide();
-          window.pyodideInstance = pyInst;
-          
-          // Load base scientific libraries
-          setConsoleOutput("Loading Pandas, NumPy, Matplotlib scientific libraries...");
-          await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          // Temporarily disable AMD loader to prevent Pyodide and Emscripten package scripts from being hijacked by Monaco's AMD loader
+          const saveDefine = window.define;
+          const saveRequire = window.require;
+          window.define = undefined;
+          window.require = undefined;
+
+          let pyInst;
+          try {
+            // Preload WASM engine
+            setConsoleOutput("Initializing DevShaala Python engine (WASM)...");
+            pyInst = await window.loadPyodide();
+            window.pyodideInstance = pyInst;
+            
+            // Load base scientific libraries
+            setConsoleOutput("Loading Pandas, NumPy, Matplotlib scientific libraries...");
+            await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          } finally {
+            // Restore AMD loader
+            if (saveDefine) window.define = saveDefine;
+            if (saveRequire) window.require = saveRequire;
+          }
+
           setPyodideLoaded(true);
           setConsoleOutput("DevShaala Python engine ready.\nRun options are now active in the sidebar.");
         } else {
@@ -1353,22 +1369,6 @@ img
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
                   <FileCode className="w-4 h-4 text-emerald-400" />
                   <span>{activeFile}</span>
-                  {editingUserId && editingUserId !== userProfile?.uid && (
-                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
-                      <span className="text-[10px] text-purple-400 font-semibold">
-                        Editing: {participants.find(p => p.userId === editingUserId)?.name || "Cadet"}'s workspace
-                      </span>
-                      <button
-                        onClick={() => {
-                          setEditingUserId(userProfile?.uid);
-                          toast.success("Returned to your own workspace");
-                        }}
-                        className="text-[9px] bg-purple-500 text-slate-950 font-black px-1.5 py-0.5 rounded hover:bg-purple-400 transition"
-                      >
-                        Reset to Self
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Language indicator */}

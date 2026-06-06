@@ -82,12 +82,25 @@ export default function MobileIDE() {
         }
 
         if (window.loadPyodide) {
-          setPyodideLoadingProgress("Booting Python browser engine...");
-          const pyInst = await window.loadPyodide();
-          window.pyodideInstance = pyInst;
+          // Temporarily disable AMD loader to prevent Pyodide and Emscripten package scripts from being hijacked by Monaco's AMD loader
+          const saveDefine = window.define;
+          const saveRequire = window.require;
+          window.define = undefined;
+          window.require = undefined;
 
-          setPyodideLoadingProgress("Pre-loading NumPy, Pandas, and Matplotlib libraries...");
-          await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          let pyInst;
+          try {
+            setPyodideLoadingProgress("Booting Python browser engine...");
+            pyInst = await window.loadPyodide();
+            window.pyodideInstance = pyInst;
+
+            setPyodideLoadingProgress("Pre-loading NumPy, Pandas, and Matplotlib libraries...");
+            await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          } finally {
+            // Restore AMD loader
+            if (saveDefine) window.define = saveDefine;
+            if (saveRequire) window.require = saveRequire;
+          }
           
           setPyodideLoaded(true);
         } else {

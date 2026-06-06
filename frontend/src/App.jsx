@@ -42,8 +42,8 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#060814]">
-        <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin" />
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0a]">
+        <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
