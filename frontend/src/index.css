@@ -1,14 +1,52 @@
 @import "tailwindcss";
 
+@theme {
+  --color-emerald-50: #fafafa;
+  --color-emerald-100: #f5f5f5;
+  --color-emerald-200: #e5e5e5;
+  --color-emerald-300: #d4d4d4;
+  --color-emerald-400: #ffffff;
+  --color-emerald-500: #ffffff;
+  --color-emerald-600: #e5e5e5;
+  --color-emerald-700: #404040;
+  --color-emerald-800: #262626;
+  --color-emerald-900: #171717;
+  --color-emerald-950: #0a0a0a;
+
+  --color-purple-50: #fafafa;
+  --color-purple-100: #f5f5f5;
+  --color-purple-200: #e5e5e5;
+  --color-purple-300: #d4d4d4;
+  --color-purple-400: #ffffff;
+  --color-purple-500: #ffffff;
+  --color-purple-600: #e5e5e5;
+  --color-purple-700: #404040;
+  --color-purple-800: #262626;
+  --color-purple-900: #171717;
+  --color-purple-950: #0a0a0a;
+
+  --color-sky-50: #fafafa;
+  --color-sky-100: #f5f5f5;
+  --color-sky-200: #e5e5e5;
+  --color-sky-300: #d4d4d4;
+  --color-sky-400: #ffffff;
+  --color-sky-500: #ffffff;
+  --color-sky-600: #e5e5e5;
+  --color-sky-700: #404040;
+  --color-sky-800: #262626;
+  --color-sky-900: #171717;
+  --color-sky-950: #0a0a0a;
+}
+
 @layer base {
   :root {
-    --bg-primary: #080c14;
-    --bg-secondary: #0f172a;
-    --bg-tertiary: #1e293b;
-    --accent: #10b981;
-    --accent-glow: rgba(16, 185, 129, 0.2);
-    --text-main: #f1f5f9;
-    --text-muted: #94a3b8;
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #171717;
+    --bg-tertiary: #262626;
+    --accent: #ffffff;
+    --accent-glow: rgba(255, 255, 255, 0.08);
+    --text-main: #ffffff;
+    --text-muted: #a3a3a3;
     --border: rgba(255, 255, 255, 0.08);
   }
 
@@ -41,10 +79,10 @@
     --bg-primary: #000000;
     --bg-secondary: #000000;
     --bg-tertiary: #111111;
-    --accent: #00ff66;
-    --accent-glow: rgba(0, 255, 102, 0.3);
+    --accent: #ffffff;
+    --accent-glow: rgba(255, 255, 255, 0.2);
     --text-main: #ffffff;
-    --text-muted: #ffffff;
+    --text-muted: #a3a3a3;
     --border: #ffffff;
   }
 }
@@ -59,7 +97,7 @@ body {
 
 /* Glassmorphism Styles */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(23, 23, 23, 0.65);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
@@ -97,21 +135,21 @@ body {
 
 /* Neon Glow Effect */
 .glow-accent {
-  box-shadow: 0 0 15px var(--accent-glow);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .border-accent-focus:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
 }
 
 /* Keyframe Animations */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 10px var(--accent-glow);
+    border-color: var(--border);
   }
   50% {
-    box-shadow: 0 0 20px var(--accent);
+    border-color: rgba(255, 255, 255, 0.35);
   }
 }
 

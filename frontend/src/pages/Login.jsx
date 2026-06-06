@@ -51,18 +51,18 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative bg-[#060814] overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center relative bg-[#0a0a0a] overflow-hidden">
       {/* Background Animated Blobs */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full filter blur-[120px] opacity-40 bg-emerald-500/20 animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full filter blur-[120px] opacity-40 bg-purple-500/20 animate-pulse" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full filter blur-[120px] opacity-10 bg-white/5" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full filter blur-[120px] opacity-10 bg-white/5" />
       </div>
 
       <div className="relative z-10 w-full max-w-md px-6">
         
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 p-2">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white border border-white/10 flex items-center justify-center shadow-lg shadow-black/50 p-2">
             <img src={LOGO} alt="DevShaala Logo" className="w-12 h-12 object-contain" />
           </div>
           <h1 className="text-2xl font-black font-outfit tracking-wider text-slate-100 uppercase">
@@ -74,9 +74,9 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="glass-panel p-8 rounded-3xl shadow-2xl relative border border-white/5 bg-slate-950/40">
+        <div className="glass-panel p-8 rounded-3xl shadow-2xl relative border border-white/5 bg-neutral-900/40">
           <h2 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-emerald-400" />
+            <Lock className="w-4 h-4 text-white" />
             Sign In
           </h2>
 
@@ -94,7 +94,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your student or mentor email"
-                  className="w-full bg-slate-900/60 border border-white/5 rounded-2xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition duration-150"
+                  className="w-full bg-neutral-900/60 border border-white/5 rounded-2xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white/10 transition duration-150"
                   required
                 />
               </div>
@@ -112,7 +112,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full bg-slate-900/60 border border-white/5 rounded-2xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 transition duration-150"
+                  className="w-full bg-neutral-900/60 border border-white/5 rounded-2xl pl-10 pr-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white/10 transition duration-150"
                   required
                 />
               </div>
@@ -122,7 +122,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold uppercase tracking-wider py-4 rounded-2xl transition duration-150 flex items-center justify-center gap-2 mt-6 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              className="w-full bg-white hover:bg-neutral-200 text-black font-bold uppercase tracking-wider py-4 rounded-2xl transition duration-150 flex items-center justify-center gap-2 mt-6 disabled:opacity-50 cursor-pointer"
             >
               {loading ? (
                 <>

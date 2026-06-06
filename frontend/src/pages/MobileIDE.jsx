@@ -280,7 +280,7 @@ img
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#05070f] text-slate-100 overflow-hidden font-sans select-text">
+    <div className="h-screen w-screen flex flex-col bg-[#0a0a0a] text-slate-100 overflow-hidden font-sans select-text">
       
       {/* 1. Header Navigation Bar */}
       <header className="h-[52px] bg-slate-950/80 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel shrink-0">
@@ -578,7 +578,7 @@ img
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -15 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute inset-0 bg-[#05070f] flex flex-col p-4 overflow-y-auto"
+                    className="absolute inset-0 bg-[#0a0a0a] flex flex-col p-4 overflow-y-auto"
                   >
                     <span className="text-[10px] font-bold text-slate-500 mb-3 block">MATPLOTLIB GRAPH CANVAS</span>
                     {matplotlibPlot ? (
@@ -811,7 +811,7 @@ plt.show()`}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-[280px] max-w-[85vw] h-full bg-[#070b19] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto"
+              className="relative w-[280px] max-w-[85vw] h-full bg-[#171717] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6 pb-3 border-b border-white/5">
                 <div className="flex items-center gap-2">

@@ -77,7 +77,8 @@ async def websocket_endpoint(
                     {
                         "type": "webrtc-signal",
                         "senderId": user_id,
-                        "signal": signal
+                        "signal": signal,
+                        "screenShare": data.get("screenShare", False)
                     }
                 )
                 
@@ -178,6 +179,20 @@ async def websocket_endpoint(
                     {
                         "type": "revoke-speak",
                         "target": data.get("target")
+                    },
+                    exclude_user_id=user_id
+                )
+
+            elif msg_type == "present-toggle":
+                active = data.get("active", False)
+                if room_id in manager.rooms and user_id in manager.rooms[room_id]["users"]:
+                    manager.rooms[room_id]["users"][user_id]["isPresenting"] = active
+                await manager.broadcast_to_room(
+                    room_id,
+                    {
+                        "type": "present-toggle",
+                        "senderId": user_id,
+                        "active": active
                     },
                     exclude_user_id=user_id
                 )

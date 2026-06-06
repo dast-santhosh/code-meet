@@ -27,7 +27,8 @@ class ConnectionManager:
             "role": role,
             "videoMuted": False,
             "micMuted": True if role == "cadet" else False,
-            "code": ""
+            "code": "",
+            "isPresenting": False
         }
         
         # 1. Send active users list, Yjs update history, and Chat history to the newly joined user
@@ -38,7 +39,8 @@ class ConnectionManager:
                 "role": info["role"],
                 "videoMuted": info.get("videoMuted", False),
                 "micMuted": info.get("micMuted", False),
-                "code": info.get("code", "")
+                "code": info.get("code", ""),
+                "isPresenting": info.get("isPresenting", False)
             }
             for uid, info in room["users"].items()
         ]
@@ -60,7 +62,8 @@ class ConnectionManager:
                 "role": role,
                 "videoMuted": room["users"][user_id]["videoMuted"],
                 "micMuted": room["users"][user_id]["micMuted"],
-                "code": room["users"][user_id]["code"]
+                "code": room["users"][user_id]["code"],
+                "isPresenting": room["users"][user_id]["isPresenting"]
             },
             exclude_user_id=user_id
         )

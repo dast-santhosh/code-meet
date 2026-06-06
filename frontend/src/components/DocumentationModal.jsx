@@ -90,8 +90,8 @@ export default function DocumentationModal({ isOpen, onClose }) {
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-950/50 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <BookOpen className="w-5 h-5 text-emerald-400" />
-            <h2 className="font-orbitron text-sm font-bold tracking-widest text-emerald-400">DEVSHAALA LIBRARY HELP</h2>
+            <BookOpen className="w-5 h-5 text-slate-400" />
+            <h2 className="font-orbitron text-sm font-bold tracking-widest text-white">DEVSHAALA LIBRARY HELP</h2>
           </div>
           <button 
             onClick={onClose} 
@@ -109,9 +109,9 @@ export default function DocumentationModal({ isOpen, onClose }) {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between ${
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                   activeTab === tab 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                    ? 'bg-white/10 text-white border border-white/20' 
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -132,7 +132,7 @@ export default function DocumentationModal({ isOpen, onClose }) {
               {doc.sections.map((section, idx) => (
                 <div key={idx} className="bg-slate-900/40 border border-white/5 rounded-xl p-4 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-                    <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                    <Compass className="w-3.5 h-3.5 text-slate-400" />
                     {section.name}
                   </div>
                   <pre className="text-xs font-mono bg-slate-950/30 p-3 rounded-lg text-slate-300 leading-relaxed whitespace-pre-wrap select-text">

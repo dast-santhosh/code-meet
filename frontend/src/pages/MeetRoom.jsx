@@ -12,7 +12,8 @@ import JSZip from 'jszip';
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare, Users, Hand, Play,
   FolderOpen, Search, Bot, HelpCircle, FileCode, Check, BookOpen,
-  Trash2, Plus, Terminal, RefreshCw, Pin, Eye, VolumeX, UserPlus, UserMinus, Lock, Unlock, X
+  Trash2, Plus, Terminal, RefreshCw, Pin, Eye, VolumeX, UserPlus, UserMinus, Lock, Unlock, X,
+  ScreenShare, ScreenShareOff
 } from 'lucide-react';
 
 // Components
@@ -22,6 +23,33 @@ import ChatPortal from '../components/ChatPortal';
 import AIPortal from '../components/AIPortal';
 import SearchPortal from '../components/SearchPortal';
 import DocumentationModal from '../components/DocumentationModal';
+
+function PresenterScreenPlayer({ stream }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  if (!stream) {
+    return (
+      <div className="text-xs text-slate-500 italic select-none">
+        Connecting screen presentation stream...
+      </div>
+    );
+  }
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      className="w-full h-full object-contain"
+    />
+  );
+}
 
 export default function MeetRoom() {
   const { squadronId } = useParams();
@@ -92,6 +120,13 @@ export default function MeetRoom() {
   const [speakRequestPopup, setSpeakRequestPopup] = useState(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [mobileDrawerTab, setMobileDrawerTab] = useState('explorer');
+
+  // Screen Sharing States
+  const [presenterId, setPresenterId] = useState(null);
+  const [localScreenStream, setLocalScreenStream] = useState(null);
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
+  const localScreenStreamRef = useRef(null);
+  const screenPeersRef = useRef({});
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -179,6 +214,9 @@ export default function MeetRoom() {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
+      if (localScreenStreamRef.current) {
+        localScreenStreamRef.current.getTracks().forEach(t => t.stop());
+      }
     };
   }, []);
 
@@ -226,6 +264,11 @@ export default function MeetRoom() {
             data.users.forEach(u => {
               initialCodes[u.userId] = u.code || "";
             });
+            // Check if anyone is currently presenting
+            const activePresenter = data.users.find(u => u.isPresenting);
+            if (activePresenter) {
+              setPresenterId(activePresenter.userId);
+            }
           }
           setPeerCodes(initialCodes);
 
@@ -255,6 +298,11 @@ export default function MeetRoom() {
           toast(`${data.name} joined class`, {
             icon: <UserPlus className="w-5 h-5 text-sky-400" />
           });
+
+          // If we are currently sharing screen, initiate a screen WebRTC connection to this new peer
+          if (role === 'commandant' && localScreenStreamRef.current) {
+            await createScreenPeerConnection(data.userId, true);
+          }
           break;
 
         case 'peer-left':
@@ -269,6 +317,10 @@ export default function MeetRoom() {
             peersRef.current[data.userId].close();
             delete peersRef.current[data.userId];
           }
+          if (screenPeersRef.current[data.userId]) {
+            screenPeersRef.current[data.userId].close();
+            delete screenPeersRef.current[data.userId];
+          }
           setRemoteStreams(prev => {
             const copy = { ...prev };
             delete copy[data.userId];
@@ -277,25 +329,69 @@ export default function MeetRoom() {
           break;
 
         case 'webrtc-signal':
-          const { senderId, signal } = data;
-          let pc = peersRef.current[senderId];
-          if (!pc) {
-            pc = await createPeerConnection(senderId, false);
-          }
-
-          if (signal.sdp) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            if (signal.type === 'offer') {
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              socket.send(JSON.stringify({
-                type: 'webrtc-signal',
-                target: senderId,
-                signal: { type: 'answer', sdp: answer }
-              }));
+          const { senderId, signal, screenShare } = data;
+          if (screenShare) {
+            let pc = screenPeersRef.current[senderId];
+            if (!pc) {
+              pc = await createScreenPeerConnection(senderId, false);
             }
-          } else if (signal.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+
+            if (signal.sdp) {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+              if (signal.type === 'offer') {
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.send(JSON.stringify({
+                  type: 'webrtc-signal',
+                  target: senderId,
+                  screenShare: true,
+                  signal: { type: 'answer', sdp: answer }
+                }));
+              }
+            } else if (signal.candidate) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              } catch (e) {
+                console.error("Error adding screen ICE candidate:", e);
+              }
+            }
+          } else {
+            let pc = peersRef.current[senderId];
+            if (!pc) {
+              pc = await createPeerConnection(senderId, false);
+            }
+
+            if (signal.sdp) {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+              if (signal.type === 'offer') {
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.send(JSON.stringify({
+                  type: 'webrtc-signal',
+                  target: senderId,
+                  signal: { type: 'answer', sdp: answer }
+                }));
+              }
+            } else if (signal.candidate) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              } catch (e) {
+                console.error("Error adding ICE candidate:", e);
+              }
+            }
+          }
+          break;
+
+        case 'present-toggle':
+          if (data.active) {
+            setPresenterId(data.senderId);
+            setRemoteScreenStream(null);
+          } else {
+            setPresenterId(null);
+            setRemoteScreenStream(null);
+            // Close all screen peer connections
+            Object.values(screenPeersRef.current).forEach(pc => pc.close());
+            screenPeersRef.current = {};
           }
           break;
 
@@ -409,6 +505,7 @@ export default function MeetRoom() {
     return () => {
       socket.close();
       Object.values(peersRef.current).forEach(pc => pc.close());
+      Object.values(screenPeersRef.current).forEach(pc => pc.close());
     };
   }, [userProfile, localStream]);
 
@@ -462,6 +559,112 @@ export default function MeetRoom() {
     }
 
     return pc;
+  };
+
+  const createScreenPeerConnection = async (peerId, isOfferor) => {
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+
+    screenPeersRef.current[peerId] = pc;
+
+    // Attach local screen share tracks
+    if (localScreenStreamRef.current) {
+      localScreenStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localScreenStreamRef.current);
+      });
+    }
+
+    // Handle ICE candidacy for screen share
+    pc.onicecandidate = (event) => {
+      if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'webrtc-signal',
+          target: peerId,
+          screenShare: true,
+          signal: { candidate: event.candidate }
+        }));
+      }
+    };
+
+    // Listen for incoming remote stream tracks
+    pc.ontrack = (event) => {
+      setRemoteScreenStream(event.streams[0]);
+    };
+
+    if (isOfferor) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'webrtc-signal',
+          target: peerId,
+          screenShare: true,
+          signal: { type: 'offer', sdp: offer }
+        }));
+      }
+    }
+
+    return pc;
+  };
+
+  const handleStartPresenting = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      });
+      localScreenStreamRef.current = stream;
+      setLocalScreenStream(stream);
+      setPresenterId(userProfile?.uid);
+
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'present-toggle',
+          active: true
+        }));
+      }
+
+      // Handle stop clicking from browser prompt
+      stream.getVideoTracks()[0].onended = () => {
+        handleStopPresenting();
+      };
+
+      // Create screen peer connections to all participants
+      participants.forEach(async (peer) => {
+        if (peer.userId !== userProfile?.uid) {
+          await createScreenPeerConnection(peer.userId, true);
+        }
+      });
+
+      toast.success("You are now presenting your screen.");
+    } catch (err) {
+      toast.error("Failed to share screen: " + err.message);
+    }
+  };
+
+  const handleStopPresenting = () => {
+    if (localScreenStreamRef.current) {
+      localScreenStreamRef.current.getTracks().forEach(track => track.stop());
+      localScreenStreamRef.current = null;
+    }
+    setLocalScreenStream(null);
+    setPresenterId(null);
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'present-toggle',
+        active: false
+      }));
+    }
+
+    // Close all screen sharing peer connections
+    Object.values(screenPeersRef.current).forEach(pc => pc.close());
+    screenPeersRef.current = {};
+    toast.success("Stopped screen presentation.");
   };
 
   const handleSendMessage = (text) => {
@@ -711,7 +914,7 @@ img
   // Previews loop helper
 
   return (
-    <div className="h-screen flex flex-col bg-[#080c14] text-slate-100 overflow-hidden font-sans">
+    <div className="h-screen flex flex-col bg-[#0a0a0a] text-slate-100 overflow-hidden font-sans">
       
       {/* 1. Upper Menu Bar */}
       <header className="h-[48px] bg-slate-950/70 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel">
@@ -901,6 +1104,19 @@ img
             >
               <Bot className="w-5 h-5" />
             </button>
+            {role === 'commandant' && (
+              <button
+                onClick={presenterId === userProfile?.uid ? handleStopPresenting : handleStartPresenting}
+                className={`p-3 rounded-2xl transition border cursor-pointer ${
+                  presenterId === userProfile?.uid
+                    ? 'bg-red-500/10 border-red-500/20 text-red-500' 
+                    : 'bg-slate-900 border-white/5 text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={presenterId === userProfile?.uid ? "Stop Screen Share" : "Share Screen"}
+              >
+                {presenterId === userProfile?.uid ? <ScreenShareOff className="w-5 h-5" /> : <ScreenShare className="w-5 h-5" />}
+              </button>
+            )}
             <button
               onClick={handleToggleMic}
               className={`p-3 rounded-2xl transition border ${micMuted ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-slate-900 border-white/5 text-emerald-400 hover:text-white'}`}
@@ -1070,115 +1286,179 @@ img
           className="flex-1 flex flex-col overflow-hidden p-4 relative min-w-[300px]"
         >
           
-          {/* Active File Header */}
-          <div className="flex items-center justify-between mb-2 px-2 select-none">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-              <FileCode className="w-4 h-4 text-emerald-400" />
-              <span>{activeFile}</span>
-              {editingUserId && editingUserId !== userProfile?.uid && (
-                <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
-                  <span className="text-[10px] text-purple-400 font-semibold">
-                    Editing: {participants.find(p => p.userId === editingUserId)?.name || "Cadet"}'s workspace
-                  </span>
-                  <button
-                    onClick={() => {
-                      setEditingUserId(userProfile?.uid);
-                      toast.success("Returned to your own workspace");
-                    }}
-                    className="text-[9px] bg-purple-500 text-slate-950 font-black px-1.5 py-0.5 rounded hover:bg-purple-400 transition"
-                  >
-                    Reset to Self
-                  </button>
-                </div>
-              )}
-            </div>
+          {presenterId !== null ? (
+            <div className="flex-1 flex flex-col min-h-0 bg-black rounded-3xl border border-white/5 relative overflow-hidden">
+              {/* Header Info Banner */}
+              <div className="absolute top-4 left-4 z-40 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2 text-[10px] font-bold uppercase select-none">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                <span>
+                  {presenterId === userProfile?.uid 
+                    ? "You are presenting your screen" 
+                    : `${participants.find(p => p.userId === presenterId)?.name || 'Commandant'} is presenting`
+                  }
+                </span>
+              </div>
 
-            {/* Language indicator */}
-            <div className="text-[10px] bg-slate-900 border border-white/5 px-2 py-0.5 rounded text-slate-400 uppercase font-bold font-orbitron">
-              PYTHON WASM
-            </div>
-          </div>
-
-          {/* Monaco Editor container */}
-          <div className="flex-1 min-h-[150px] relative">
-            <CodeEditor
-              readOnly={false}
-              value={files[activeFile] || ""}
-              onChange={handleUpdateFileContent}
-            />
-
-            {/* Floating Local Stream video player (Desktop only) */}
-            {!isMobile && localStream && !videoMuted && (
-              <div className="float-camera">
-                <ParticipantVideo
-                  stream={localStream}
-                  name="You"
-                  isMuted={micMuted}
-                  isCameraOn={!videoMuted}
-                  isHandRaised={handRaised}
-                  isLocal={true}
-                  className="w-full h-full"
+              {/* Presenter stream player */}
+              <div className="flex-1 min-h-0 w-full h-full flex items-center justify-center bg-[#0a0a0a]">
+                <PresenterScreenPlayer 
+                  stream={presenterId === userProfile?.uid ? localScreenStream : remoteScreenStream} 
                 />
               </div>
-            )}
-          </div>
 
-          {/* Mobile Bottom Commandant Video Feed (visible only on mobile when editor is not focused) */}
-          {isMobile && !editorFocused && (
-            <div className="h-[200px] mt-4 flex flex-col bg-slate-950 border border-white/5 rounded-xl overflow-hidden shadow-lg select-none">
-              <div className="flex items-center px-4 py-2 bg-slate-900 border-b border-white/5 justify-between">
-                <span className="text-[9px] font-bold font-orbitron tracking-wider text-red-400">COMMANDANT STREAM</span>
-                <span className="text-[9px] text-slate-400 font-semibold">{commandant?.name || "Offline"}</span>
-              </div>
-              <div className="flex-1 bg-slate-950/20 relative flex items-center justify-center p-2">
-                {commandant ? (
-                  remoteStreams[commandant.userId] ? (
-                    <ParticipantVideo
-                      stream={remoteStreams[commandant.userId]}
-                      name={commandant.name}
-                      isMuted={false}
-                      isCameraOn={true}
-                      isHandRaised={false}
-                      isLocal={false}
-                      className="w-full h-full"
-                    />
-                  ) : (
-                    <div className="text-[10px] text-slate-500 italic">Commandant webcam starting...</div>
-                  )
-                ) : (
-                  <div className="text-[10px] text-slate-500 italic">Commandant offline</div>
-                )}
+              {/* Commandant webcam overlay feed (at right bottom) */}
+              <div className="absolute bottom-4 right-4 w-[180px] h-[135px] rounded-2xl overflow-hidden border border-white/10 z-50 bg-[#121212] shadow-2xl">
+                {(() => {
+                  const cmdUser = participants.find(p => p.role === 'commandant');
+                  if (cmdUser) {
+                    const isSelfCmd = cmdUser.userId === userProfile?.uid;
+                    const cmdStream = isSelfCmd ? localStream : remoteStreams[cmdUser.userId];
+                    const isMuted = isSelfCmd ? micMuted : cmdUser.micMuted;
+                    const isCameraOn = isSelfCmd ? !videoMuted : !cmdUser.videoMuted;
+
+                    if (cmdStream && isCameraOn) {
+                      return (
+                        <ParticipantVideo
+                          stream={cmdStream}
+                          name={cmdUser.name}
+                          isMuted={isMuted}
+                          isCameraOn={true}
+                          isHandRaised={false}
+                          isLocal={isSelfCmd}
+                          className="w-full h-full object-cover"
+                        />
+                      );
+                    } else {
+                      return (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-[9px] text-slate-500 font-bold uppercase select-none">
+                          <span>{cmdUser.name}</span>
+                          <span className="text-[7px] font-normal tracking-wide mt-0.5">webcam off</span>
+                        </div>
+                      );
+                    }
+                  } else {
+                    return (
+                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500 font-bold uppercase select-none">
+                        Instructor Offline
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             </div>
-          )}
-
-          {/* Terminal Console Panel (Desktop only) */}
-          {!isMobile && (
-            <section className="h-[180px] mt-4 flex flex-col bg-slate-950 border border-white/5 rounded-xl overflow-hidden shadow-lg select-text">
-              <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-white/5 select-none">
-                <div className="flex items-center gap-1.5">
-                  <Terminal className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[10px] font-bold font-orbitron tracking-wider text-emerald-400">OUTPUT CONSOLE</span>
+          ) : (
+            <>
+              {/* Active File Header */}
+              <div className="flex items-center justify-between mb-2 px-2 select-none">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <FileCode className="w-4 h-4 text-emerald-400" />
+                  <span>{activeFile}</span>
+                  {editingUserId && editingUserId !== userProfile?.uid && (
+                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
+                      <span className="text-[10px] text-purple-400 font-semibold">
+                        Editing: {participants.find(p => p.userId === editingUserId)?.name || "Cadet"}'s workspace
+                      </span>
+                      <button
+                        onClick={() => {
+                          setEditingUserId(userProfile?.uid);
+                          toast.success("Returned to your own workspace");
+                        }}
+                        className="text-[9px] bg-purple-500 text-slate-950 font-black px-1.5 py-0.5 rounded hover:bg-purple-400 transition"
+                      >
+                        Reset to Self
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => setConsoleOutput('')} className="text-[9px] font-bold text-slate-500 hover:text-white transition">
-                  CLEAR
-                </button>
-              </div>
-              
-              <div className="flex-1 flex overflow-hidden">
-                {/* Output log */}
-                <pre className="flex-1 p-4 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed">
-                  {consoleOutput}
-                </pre>
 
-                {/* Matplotlib image render view */}
-                {matplotlibPlot && (
-                  <div className="w-[180px] border-l border-white/5 p-2 bg-white flex items-center justify-center">
-                    <img src={matplotlibPlot} alt="Plot figure output" className="max-w-full max-h-full object-contain" />
+                {/* Language indicator */}
+                <div className="text-[10px] bg-slate-900 border border-white/5 px-2 py-0.5 rounded text-slate-400 uppercase font-bold font-orbitron">
+                  PYTHON WASM
+                </div>
+              </div>
+
+              {/* Monaco Editor container */}
+              <div className="flex-1 min-h-[150px] relative">
+                <CodeEditor
+                  readOnly={false}
+                  value={files[activeFile] || ""}
+                  onChange={handleUpdateFileContent}
+                />
+
+                {/* Floating Local Stream video player (Desktop only) */}
+                {!isMobile && localStream && !videoMuted && (
+                  <div className="float-camera">
+                    <ParticipantVideo
+                      stream={localStream}
+                      name="You"
+                      isMuted={micMuted}
+                      isCameraOn={!videoMuted}
+                      isHandRaised={handRaised}
+                      isLocal={true}
+                      className="w-full h-full"
+                    />
                   </div>
                 )}
               </div>
-            </section>
+
+              {/* Mobile Bottom Commandant Video Feed (visible only on mobile when editor is not focused) */}
+              {isMobile && !editorFocused && (
+                <div className="h-[200px] mt-4 flex flex-col bg-slate-950 border border-white/5 rounded-xl overflow-hidden shadow-lg select-none">
+                  <div className="flex items-center px-4 py-2 bg-slate-900 border-b border-white/5 justify-between">
+                    <span className="text-[9px] font-bold font-orbitron tracking-wider text-red-400">COMMANDANT STREAM</span>
+                    <span className="text-[9px] text-slate-400 font-semibold">{commandant?.name || "Offline"}</span>
+                  </div>
+                  <div className="flex-1 bg-slate-950/20 relative flex items-center justify-center p-2">
+                    {commandant ? (
+                      remoteStreams[commandant.userId] ? (
+                        <ParticipantVideo
+                          stream={remoteStreams[commandant.userId]}
+                          name={commandant.name}
+                          isMuted={false}
+                          isCameraOn={true}
+                          isHandRaised={false}
+                          isLocal={false}
+                          className="w-full h-full"
+                        />
+                      ) : (
+                        <div className="text-[10px] text-slate-500 italic">Commandant webcam starting...</div>
+                      )
+                    ) : (
+                      <div className="text-[10px] text-slate-500 italic">Commandant offline</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Terminal Console Panel (Desktop only) */}
+              {!isMobile && (
+                <section className="h-[180px] mt-4 flex flex-col bg-slate-950 border border-white/5 rounded-xl overflow-hidden shadow-lg select-text">
+                  <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-white/5 select-none">
+                    <div className="flex items-center gap-1.5">
+                      <Terminal className="w-4 h-4 text-emerald-400" />
+                      <span className="text-[10px] font-bold font-orbitron tracking-wider text-emerald-400">OUTPUT CONSOLE</span>
+                    </div>
+                    <button onClick={() => setConsoleOutput('')} className="text-[9px] font-bold text-slate-500 hover:text-white transition">
+                      CLEAR
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 flex overflow-hidden">
+                    {/* Output log */}
+                    <pre className="flex-1 p-4 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed">
+                      {consoleOutput}
+                    </pre>
+
+                    {/* Matplotlib image render view */}
+                    {matplotlibPlot && (
+                      <div className="w-[180px] border-l border-white/5 p-2 bg-white flex items-center justify-center">
+                        <img src={matplotlibPlot} alt="Plot figure output" className="max-w-full max-h-full object-contain" />
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+            </>
           )}
         </main>        {/* D. Right Side Dashboard */}
         {!isMobile && (
@@ -1257,7 +1537,7 @@ img
       {/* 5. Neuomorphic Peer Code Popup (only main.py) */}
       {selectedPeerForPopup && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#0f172a] p-6 rounded-[30px] border border-white/5 w-[500px] max-w-[90vw] h-[400px] flex flex-col space-y-4 shadow-[12px_12px_24px_#05080f,-12px_-12px_24px_#192645]">
+          <div className="bg-[#1e1e1e] p-6 rounded-[30px] border border-white/5 w-[500px] max-w-[90vw] h-[400px] flex flex-col space-y-4 shadow-[12px_12px_24px_rgba(0,0,0,0.6),-12px_-12px_24px_rgba(255,255,255,0.03)]">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div className="flex flex-col text-left">
                 <span className="text-xs font-bold text-white uppercase tracking-wider font-orbitron">{selectedPeerForPopup.name}'s Workspace</span>
@@ -1265,12 +1545,12 @@ img
               </div>
               <button
                 onClick={() => setSelectedPeerForPopup(null)}
-                className="p-1.5 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition shadow-[4px_4px_8px_#05080f,-4px_-4px_8px_#192645] active:scale-95"
+                className="p-1.5 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition shadow-[4px_4px_8px_rgba(0,0,0,0.6),-4px_-4px_8px_rgba(255,255,255,0.03)] active:scale-95"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden shadow-[inset_6px_6px_12px_#05080f,inset_-6px_-6px_12px_#192645] bg-[#0c1222]/50 p-2">
+            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden shadow-[inset_6px_6px_12px_rgba(0,0,0,0.6),inset_-6px_-6px_12px_rgba(255,255,255,0.03)] bg-black/40 p-2">
               <CodeEditor
                 readOnly={true}
                 value={peerCodes[selectedPeerForPopup.userId] || "# Online\n# No code updates recorded yet"}
@@ -1339,7 +1619,7 @@ img
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-[280px] max-w-[85vw] h-full bg-[#070b19] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto text-left"
+              className="relative w-[280px] max-w-[85vw] h-full bg-[#171717] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto text-left"
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">

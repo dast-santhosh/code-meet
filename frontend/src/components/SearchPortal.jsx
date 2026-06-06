@@ -33,8 +33,8 @@ export default function SearchPortal() {
       {/* Drag Handle & Header */}
       <div className="search-drag-handle flex items-center justify-between px-4 py-3 bg-slate-950/40 border-b border-white/5 cursor-move select-none">
         <div className="flex items-center gap-2 pointer-events-none">
-          <Search className="w-4 h-4 text-sky-400" />
-          <span className="text-xs font-bold font-orbitron tracking-wider text-sky-400">DUCKDUCKGO SEARCH</span>
+          <Search className="w-4 h-4 text-slate-400" />
+          <span className="text-xs font-bold font-orbitron tracking-wider text-slate-200">DUCKDUCKGO SEARCH</span>
         </div>
         <div className="flex items-center gap-1">
           <button 
@@ -62,11 +62,11 @@ export default function SearchPortal() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search duckduckgo..."
-              className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
+              className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white transition"
             />
             <button
               type="submit"
-              className="p-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold transition flex items-center justify-center glow-accent"
+              className="p-2 bg-neutral-850 hover:bg-neutral-800 text-white rounded-xl font-bold transition flex items-center justify-center cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
             </button>
@@ -90,7 +90,7 @@ export default function SearchPortal() {
                     href={`https://duckduckgo.com/?q=${encodeURIComponent(query)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-sky-400 font-bold hover:underline flex items-center gap-1"
+                    className="text-[10px] text-white font-bold hover:underline flex items-center gap-1"
                   >
                     Open Tab <ExternalLink className="w-2.5 h-2.5" />
                   </a>
@@ -105,7 +105,7 @@ export default function SearchPortal() {
                     href={`https://duckduckgo.com/?q=${encodeURIComponent(query)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-sky-400 rounded-xl border border-sky-500/20 transition mt-2"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white rounded-xl border border-white/10 transition mt-2"
                   >
                     Direct DuckDuckGo Link <ExternalLink className="w-3 h-3" />
                   </a>

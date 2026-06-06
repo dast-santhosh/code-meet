@@ -126,19 +126,19 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#060814]">
-        <Loader2 className="w-10 h-10 animate-spin text-emerald-400" />
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="w-10 h-10 animate-spin text-white" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#060814] text-slate-100 p-8 font-sans">
+    <div className="min-h-screen bg-[#0a0a0a] text-slate-100 p-8 font-sans">
       
       {/* Dashboard Top Header */}
       <div className="max-w-5xl mx-auto flex items-center justify-between border-b border-white/5 pb-6 mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-white border border-emerald-500/20 flex items-center justify-center p-1.5">
+          <div className="w-12 h-12 rounded-full bg-white border border-white/10 flex items-center justify-center p-1.5">
             <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="w-7 h-7 object-contain" />
           </div>
           <div>
@@ -146,7 +146,7 @@ export default function Dashboard() {
               DevShaala Code & Meet
             </h1>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1">
-              <Shield className="w-3 h-3 text-emerald-400" />
+              <Shield className="w-3 h-3 text-slate-400" />
               {role === 'commandant' ? 'Mentor Control Station' : 'Student Cadet Lounge'}
             </p>
           </div>
@@ -159,7 +159,7 @@ export default function Dashboard() {
           </div>
           <button 
             onClick={handleLogout} 
-            className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold"
+            className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
@@ -169,7 +169,7 @@ export default function Dashboard() {
 
       {/* Main Content Dashboard */}
       <div className="max-w-5xl mx-auto">
-        <h2 className="text-sm font-bold tracking-widest font-orbitron text-emerald-400 uppercase mb-4">
+        <h2 className="text-sm font-bold tracking-widest font-orbitron text-white uppercase mb-4">
           {role === 'commandant' ? 'MY SQUADRONS' : 'ENROLLED CLASSES'}
         </h2>
 
@@ -188,7 +188,7 @@ export default function Dashboard() {
                 <div 
                   key={sq.id} 
                   className={`glass-panel p-6 rounded-3xl border transition duration-150 flex flex-col justify-between h-[200px] ${
-                    isLive ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/5 bg-emerald-950/5' : 'border-white/5 bg-slate-950/25'
+                    isLive ? 'border-neutral-700 bg-neutral-900/60 shadow-lg shadow-black/20' : 'border-neutral-800/80 bg-neutral-900/20'
                   }`}
                 >
                   <div>
@@ -201,7 +201,7 @@ export default function Dashboard() {
                           <span className="text-[8px] font-black text-red-400 tracking-wider font-orbitron">LIVE</span>
                         </div>
                       ) : (
-                        <span className="text-[8px] font-bold text-slate-600 bg-slate-900 border border-white/5 px-2 py-0.5 rounded-lg font-orbitron">STANDBY</span>
+                        <span className="text-[8px] font-bold text-slate-600 bg-neutral-950 border border-white/5 px-2 py-0.5 rounded-lg font-orbitron">STANDBY</span>
                       )}
                     </div>
 
@@ -221,14 +221,14 @@ export default function Dashboard() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleJoinClass(sq)}
-                            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black uppercase py-3 rounded-2xl transition flex items-center justify-center gap-1"
+                            className="flex-1 bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3 rounded-2xl transition flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <Video className="w-3.5 h-3.5" />
                             Enter
                           </button>
                           <button
                             onClick={() => handleEndClass(sq.id)}
-                            className="px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold rounded-2xl transition flex items-center justify-center"
+                            className="px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold rounded-2xl transition flex items-center justify-center cursor-pointer"
                           >
                             <Square className="w-3.5 h-3.5 fill-red-400" />
                           </button>
@@ -236,9 +236,9 @@ export default function Dashboard() {
                       ) : (
                         <button
                           onClick={() => handleStartClass(sq)}
-                          className="w-full bg-slate-900 hover:bg-slate-850 border border-emerald-500/30 text-emerald-400 text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5"
+                          className="w-full bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-white text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          <Play className="w-3.5 h-3.5 fill-emerald-400 text-emerald-400" />
+                          <Play className="w-3.5 h-3.5 fill-white text-white" />
                           Start Class
                         </button>
                       )
@@ -247,13 +247,13 @@ export default function Dashboard() {
                       isLive ? (
                         <button
                           onClick={() => handleJoinClass(sq)}
-                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 pulse-border"
+                          className="w-full bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase py-3.5 rounded-2xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-black/20 cursor-pointer"
                         >
                           <Video className="w-4 h-4" />
                           Join Class
                         </button>
                       ) : (
-                        <div className="w-full bg-slate-900/40 text-slate-500 text-center py-3 text-xs font-bold uppercase rounded-2xl border border-white/5 cursor-not-allowed">
+                        <div className="w-full bg-neutral-900/40 text-slate-500 text-center py-3 text-xs font-bold uppercase rounded-2xl border border-white/5 cursor-not-allowed">
                           No active class
                         </div>
                       )

@@ -39,8 +39,8 @@ export default function ChatPortal({ messages, onSendMessage, userId }) {
       {/* Drag Handle & Header */}
       <div className="chat-drag-handle flex items-center justify-between px-4 py-3 bg-slate-950/40 border-b border-white/5 cursor-move select-none">
         <div className="flex items-center gap-2 pointer-events-none">
-          <MessageSquare className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold font-orbitron tracking-wider text-emerald-400">CLASS CHAT</span>
+          <MessageSquare className="w-4 h-4 text-slate-400" />
+          <span className="text-xs font-bold font-orbitron tracking-wider text-slate-200">CLASS CHAT</span>
         </div>
         <div className="flex items-center gap-1">
           <button 
@@ -83,7 +83,7 @@ export default function ChatPortal({ messages, onSendMessage, userId }) {
                     </div>
                     <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
                       isSelf 
-                        ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-500/30 rounded-tr-none' 
+                        ? 'bg-neutral-800 text-slate-100 border border-neutral-700/60 rounded-tr-none' 
                         : 'bg-slate-800/60 text-slate-100 border border-white/5 rounded-tl-none'
                     }`}>
                       {msg.text}
@@ -102,11 +102,11 @@ export default function ChatPortal({ messages, onSendMessage, userId }) {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Type message here..."
-              className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+              className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white transition"
             />
             <button
               type="submit"
-              className="p-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl font-bold transition flex items-center justify-center glow-accent"
+              className="p-2 bg-neutral-850 hover:bg-neutral-800 text-white rounded-xl font-bold transition flex items-center justify-center cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
