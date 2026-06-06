@@ -90,10 +90,10 @@ export default function MobileIDE() {
           
           setPyodideLoaded(true);
         } else {
-          setPyodideLoadingProgress("⚠️ Core script loader failed. Please refresh.");
+          setPyodideLoadingProgress("[Error] Core script loader failed. Please refresh.");
         }
       } catch (err) {
-        setPyodideLoadingProgress(`⚠️ Boot Error: ${err.message}`);
+        setPyodideLoadingProgress(`[Boot Error]: ${err.message}`);
       }
     };
     initPyodide();
@@ -140,7 +140,7 @@ sys.stderr = io.StringIO()
 
       let output = "";
       if (stdout) output += stdout;
-      if (stderr) output += `\n⚠️ Runtime Errors:\n${stderr}`;
+      if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
       if (!stdout && !stderr) output += "Script completed execution with no output logs.";
 
       setConsoleOutput(output);
@@ -163,7 +163,7 @@ plt.close('all')
 img
         `);
         setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
-        setConsoleOutput(prev => prev + "\n\n📊 Matplotlib figure generated. Look in the Output tab.");
+        setConsoleOutput(prev => prev + "\n\n[Matplotlib Plot Generated]: Look in the Output tab.");
         
         // Auto navigate to plot view tab on mobile to visualize chart
         if (isMobile) {
@@ -172,7 +172,7 @@ img
       }
 
     } catch (err) {
-      setConsoleOutput(prev => prev + `\n❌ System Error:\n${err.message}`);
+      setConsoleOutput(prev => prev + `\n[System Error]:\n${err.message}`);
     } finally {
       setIsRunning(false);
     }

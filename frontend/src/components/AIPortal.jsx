@@ -71,7 +71,7 @@ export default function AIPortal() {
     } catch (err) {
       setMessages(prev => [
         ...prev, 
-        { role: 'assistant', content: "⚠️ Error contacting AI Tutor. Please check your internet connection." }
+        { role: 'assistant', content: "[Error] Failed to contact AI Tutor. Please check your internet connection." }
       ]);
     } finally {
       setLoading(false);

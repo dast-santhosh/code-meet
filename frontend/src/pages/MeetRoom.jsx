@@ -11,7 +11,7 @@ import * as Y from 'yjs';
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare, Users, Hand, Play,
   FolderOpen, Search, Bot, HelpCircle, FileCode, Check, BookOpen,
-  Trash2, Plus, Terminal, RefreshCw, Pin, Eye
+  Trash2, Plus, Terminal, RefreshCw, Pin, Eye, VolumeX, UserPlus, UserMinus, Lock, Unlock
 } from 'lucide-react';
 
 // Components
@@ -120,10 +120,10 @@ export default function MeetRoom() {
           setPyodideLoaded(true);
           setConsoleOutput("DevShaala Python engine ready.\nRun options are now active in the sidebar.");
         } else {
-          setConsoleOutput("⚠️ Error loading Python runtime from CDN. Check your network.");
+          setConsoleOutput("[Error] Failed to load Python runtime from CDN. Check your network.");
         }
       } catch (err) {
-        setConsoleOutput(`⚠️ Engine initialization error: ${err.message}`);
+        setConsoleOutput(`[Boot Error]: Engine initialization error: ${err.message}`);
       }
     };
     initPyodide();
@@ -155,7 +155,9 @@ export default function MeetRoom() {
     if (!squadronId) return;
     const unsub = onSnapshot(doc(db, 'code_meet_sessions', squadronId), (snap) => {
       if (!snap.exists()) {
-        toast.error("📣 The meet session was ended by the Commandant.");
+        toast.error("The meet session was ended by the Commandant.", {
+          icon: <VolumeX className="w-5 h-5 text-rose-500" />
+        });
         handleExitMeet();
       } else {
         setActiveSession(snap.data());
@@ -247,7 +249,9 @@ export default function MeetRoom() {
 
         case 'peer-joined':
           setParticipants(prev => [...prev, { userId: data.userId, name: data.name, role: data.role }]);
-          toast(`👋 ${data.name} joined class`);
+          toast(`${data.name} joined class`, {
+            icon: <UserPlus className="w-5 h-5 text-sky-400" />
+          });
           break;
 
         case 'peer-left':
@@ -297,7 +301,9 @@ export default function MeetRoom() {
         case 'chat-message':
           setChatMessages(prev => [...prev, data]);
           if (!showChat) {
-            toast(`💬 Message from ${data.senderName}`);
+            toast(`Message from ${data.senderName}`, {
+              icon: <MessageSquare className="w-5 h-5 text-purple-400" />
+            });
           }
           break;
 
@@ -312,10 +318,14 @@ export default function MeetRoom() {
                 if (audioTrack) {
                   if (data.active && data.target !== userProfile.uid) {
                     audioTrack.enabled = false;
-                    toast("🔒 Commandant is speaking privately to another Cadet.");
+                    toast("Commandant is speaking privately to another Cadet.", {
+                      icon: <Lock className="w-5 h-5 text-amber-500" />
+                    });
                   } else {
                     audioTrack.enabled = true;
-                    toast("🔓 Commandant is now speaking to the whole class.");
+                    toast("Commandant is now speaking to the whole class.", {
+                      icon: <Unlock className="w-5 h-5 text-emerald-400" />
+                    });
                   }
                 }
               }
@@ -339,7 +349,9 @@ export default function MeetRoom() {
                 setMicMuted(false);
               }
             }
-            toast.success("🎙️ Commandant has granted you permission to speak. You are now unmuted!");
+            toast.success("Commandant has granted you permission to speak. You are now unmuted!", {
+              icon: <Mic className="w-5 h-5 text-emerald-400" />
+            });
           }
           break;
 
@@ -353,19 +365,25 @@ export default function MeetRoom() {
                 setMicMuted(true);
               }
             }
-            toast.error("🔇 Commandant has muted your microphone.");
+            toast.error("Commandant has muted your microphone.", {
+              icon: <MicOff className="w-5 h-5 text-rose-500" />
+            });
           }
           break;
 
         case 'hand-raise':
           setRaisedHands(prev => ({ ...prev, [data.userId]: data.isRaised }));
           if (data.isRaised) {
-            toast(`✋ ${data.name} raised hand!`);
+            toast(`${data.name} raised hand!`, {
+              icon: <Hand className="w-5 h-5 text-amber-400" />
+            });
           }
           break;
 
         case 'eviction':
-          toast.error("🚫 You were evicted from the classroom by the Commandant.");
+          toast.error("You were evicted from the classroom by the Commandant.", {
+            icon: <UserMinus className="w-5 h-5 text-rose-500" />
+          });
           handleExitMeet();
           break;
       }
@@ -556,7 +574,7 @@ sys.stderr = io.StringIO()
 
       let output = '';
       if (stdout) output += stdout;
-      if (stderr) output += `\n⚠️ Runtime Errors:\n${stderr}`;
+      if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
       if (!stdout && !stderr) output += "Code ran successfully with no printed output.";
 
       setConsoleOutput(output);
@@ -579,11 +597,11 @@ plt.close('all')
 img
         `);
         setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
-        setConsoleOutput(prev => prev + "\n\n📊 Matplotlib figure plotted successfully below.");
+        setConsoleOutput(prev => prev + "\n\n[Matplotlib Plot Generated]: Plotted successfully below.");
       }
 
     } catch (err) {
-      setConsoleOutput(prev => prev + `\n❌ Syntax/Execution Error:\n${err.message}`);
+      setConsoleOutput(prev => prev + `\n[Syntax/Execution Error]:\n${err.message}`);
     } finally {
       setIsRunning(false);
     }
@@ -1176,8 +1194,15 @@ img
           {/* Slot 2: Cadet A (Rotating or pinned) */}
           <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 flex flex-col h-[180px] relative">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-sky-400 uppercase">
-                {pinnedCadetId1 ? "📌 Pinned Cadet" : "Rotating Cadet"}
+              <span className="text-[9px] font-bold text-sky-400 uppercase flex items-center gap-1">
+                {pinnedCadetId1 ? (
+                  <>
+                    <Pin className="w-2.5 h-2.5 fill-sky-400 text-sky-400 rotate-45" />
+                    <span>Pinned Cadet</span>
+                  </>
+                ) : (
+                  <span>Rotating Cadet</span>
+                )}
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] text-slate-500 truncate max-w-[100px]">
@@ -1228,8 +1253,15 @@ img
           {/* Slot 3: Cadet B (Rotating or pinned) */}
           <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 flex flex-col h-[180px] relative">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-sky-400 uppercase">
-                {pinnedCadetId2 ? "📌 Pinned Cadet" : "Rotating Cadet"}
+              <span className="text-[9px] font-bold text-sky-400 uppercase flex items-center gap-1">
+                {pinnedCadetId2 ? (
+                  <>
+                    <Pin className="w-2.5 h-2.5 fill-sky-400 text-sky-400 rotate-45" />
+                    <span>Pinned Cadet</span>
+                  </>
+                ) : (
+                  <span>Rotating Cadet</span>
+                )}
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] text-slate-500 truncate max-w-[100px]">

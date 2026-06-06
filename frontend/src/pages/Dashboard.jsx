@@ -4,7 +4,7 @@ import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc } from 'fi
 import { db, auth } from '../firebase/config';
 import useAppStore from '../store';
 import toast from 'react-hot-toast';
-import { Video, LogOut, Play, Square, Loader2, BookOpen, UserCheck, Shield } from 'lucide-react';
+import { Video, LogOut, Play, Square, Loader2, BookOpen, UserCheck, Shield, Award } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -99,7 +99,9 @@ export default function Dashboard() {
         codeSnapshot: "# Write python program here\nprint('Hello DevShaala!')\n"
       });
       setActiveMeet(squadron.id, squadron);
-      toast.success(`🎖 Classroom session started for ${squadron.name}!`);
+      toast.success(`Classroom session started for ${squadron.name}!`, {
+        icon: <Award className="w-4 h-4 text-emerald-400" />
+      });
       navigate(`/meet/${squadron.id}`);
     } catch (err) {
       toast.error("Failed to start session: " + err.message);
