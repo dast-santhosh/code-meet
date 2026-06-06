@@ -6,6 +6,7 @@ import useAppStore from '../store';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Y from 'yjs';
+import JSZip from 'jszip';
 
 // Icons
 import {
@@ -543,7 +544,34 @@ export default function MeetRoom() {
     }
   };
 
-  const handleExitMeet = () => {
+  // Helper to pack all workspace files into a ZIP and download
+  const downloadWorkspaceAsZip = async () => {
+    try {
+      const zip = new JSZip();
+      
+      // Pack each active file into the ZIP archive
+      Object.entries(files).forEach(([name, content]) => {
+        zip.file(name, content || "");
+      });
+      
+      const blob = await zip.generateAsync({ type: "blob" });
+      const element = document.createElement("a");
+      element.href = URL.createObjectURL(blob);
+      element.download = `devshaala_workspace_${squadronId || 'files'}.zip`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      toast.success("Downloaded class workspace as ZIP!");
+    } catch (err) {
+      console.error("Failed to generate ZIP archive:", err);
+      toast.error("Failed to export workspace files");
+    }
+  };
+
+  const handleExitMeet = async () => {
+    // Automatically package and download workspace files on leave/end
+    await downloadWorkspaceAsZip();
+
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop());
     }

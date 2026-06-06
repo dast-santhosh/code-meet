@@ -13,6 +13,7 @@
     "@monaco-editor/react": "^4.7.0",
     "firebase": "^12.10.0",
     "framer-motion": "^11.2.10",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.395.0",
     "monaco-editor": "^0.55.1",
     "react": "^19.2.0",
