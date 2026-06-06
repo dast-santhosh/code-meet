@@ -54,6 +54,7 @@ export default function MobileIDE() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showSettings, setShowSettings] = useState(false);
   const [showDocumentation, setShowDocumentation] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   // Load state and listen to layout shifts
   useEffect(() => {
@@ -202,6 +203,10 @@ img
     setNewFileName('');
     setShowNewFileForm(false);
     setActiveFile(fullName);
+    if (isMobile) {
+      setShowMobileSidebar(false);
+      setActiveMobileTab('editor');
+    }
     toast.success(`Created file: ${fullName}`);
   };
 
@@ -254,6 +259,17 @@ img
     toast.success(`Downloaded: ${activeFile}`);
   };
 
+  // Clear code in active file
+  const handleClearActiveFile = () => {
+    const confirmClear = window.confirm(`Are you sure you want to clear the content of ${activeFile}?`);
+    if (!confirmClear) return;
+    setFiles(prev => ({
+      ...prev,
+      [activeFile]: ""
+    }));
+    toast.success(`Cleared content of ${activeFile}`);
+  };
+
   // Reset workspace
   const handleResetWorkspace = () => {
     const confirmReset = window.confirm("Are you sure you want to reset all files to defaults?");
@@ -268,12 +284,18 @@ img
       
       {/* 1. Header Navigation Bar */}
       <header className="h-[52px] bg-slate-950/80 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel shrink-0">
-        <div className="flex items-center gap-3">
+        <div 
+          onClick={() => isMobile && setShowMobileSidebar(!showMobileSidebar)}
+          className={`flex items-center gap-3 ${isMobile ? 'cursor-pointer active:opacity-75 hover:opacity-90 transition select-none' : ''}`}
+        >
           <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0">
             <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-5 w-auto object-contain" />
           </div>
           <div className="flex flex-col">
-            <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400">DEVSHAALA</span>
+            <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400 flex items-center gap-1">
+              DEVSHAALA
+              {isMobile && <span className="text-[9px] font-normal text-emerald-500/85 lowercase bg-emerald-500/10 px-1 py-0.5 rounded-md">menu</span>}
+            </span>
             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">Python Mobile IDE</span>
           </div>
         </div>
@@ -402,11 +424,36 @@ img
 
             {/* Editor + Console split layout */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 p-4 relative overflow-hidden">
-                <CodeEditor
-                  value={files[activeFile]}
-                  onChange={handleUpdateFileContent}
-                />
+              <div className="flex-1 p-4 flex flex-col overflow-hidden">
+                {/* Active file indicator tabs */}
+                <div className="flex items-center justify-between bg-slate-950/40 p-1.5 border border-white/5 rounded-xl mb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 px-2.5 truncate">
+                    {getFileIcon(activeFile)}
+                    <span className="truncate">{activeFile}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleClearActiveFile}
+                      className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-red-400 transition"
+                      title="Clear program"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={handleDownloadFile}
+                      className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-emerald-400 transition"
+                      title="Download file"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 relative overflow-hidden">
+                  <CodeEditor
+                    value={files[activeFile]}
+                    onChange={handleUpdateFileContent}
+                  />
+                </div>
               </div>
 
               {/* Console Tray */}
@@ -456,99 +503,6 @@ img
             {/* Viewport content based on active bottom tab */}
             <div className="flex-1 relative overflow-hidden">
               <AnimatePresence mode="wait">
-                {activeMobileTab === 'explorer' && (
-                  <motion.div
-                    key="explorer"
-                    initial={{ opacity: 0, x: -15 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 15 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute inset-0 p-4 bg-[#05070f] overflow-y-auto flex flex-col"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">FILES EXPLORER</span>
-                      <button 
-                        onClick={() => setShowNewFileForm(!showNewFileForm)}
-                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-emerald-500 text-slate-950 rounded-lg"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> File
-                      </button>
-                    </div>
-
-                    {/* Create file popup in Mobile */}
-                    {showNewFileForm && (
-                      <div className="bg-slate-950/80 p-3 rounded-2xl border border-emerald-500/20 mb-4 flex flex-col gap-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-emerald-400">Create New File</span>
-                          <button onClick={() => setShowNewFileForm(false)} className="text-slate-400"><X className="w-3.5 h-3.5" /></button>
-                        </div>
-                        <div className="flex gap-1 bg-slate-900 rounded-lg p-0.5 border border-white/5">
-                          {['.py', '.csv', '.txt', '.md'].map(ext => (
-                            <button
-                              key={ext}
-                              onClick={() => setFileType(ext)}
-                              className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition ${fileExtension === ext ? 'bg-emerald-500 text-slate-950' : 'text-slate-400'}`}
-                            >
-                              {ext}
-                            </button>
-                          ))}
-                        </div>
-                        <input
-                          type="text"
-                          value={newFileName}
-                          onChange={(e) => setNewFileName(e.target.value)}
-                          placeholder="file_name"
-                          className="bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
-                          onKeyDown={(e) => e.key === 'Enter' && handleCreateFile()}
-                        />
-                        <button onClick={handleCreateFile} className="w-full py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl">
-                          Create File
-                        </button>
-                      </div>
-                    )}
-
-                    {/* File list */}
-                    <div className="space-y-1 flex-1">
-                      {Object.keys(files).map((name) => (
-                        <div 
-                          key={name}
-                          className={`flex items-center justify-between px-3 py-3 rounded-2xl border transition ${
-                            activeFile === name ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-950/20 border-white/5 text-slate-300'
-                          }`}
-                        >
-                          <button 
-                            onClick={() => {
-                              setActiveFile(name);
-                              setActiveMobileTab('editor'); // Auto swap to editor on selection
-                            }}
-                            className="flex-1 flex items-center gap-3 text-left truncate text-xs font-medium"
-                          >
-                            {getFileIcon(name)}
-                            <span className="truncate">{name}</span>
-                          </button>
-                          {name !== 'main.py' && (
-                            <button 
-                              onClick={() => handleDeleteFile(name)}
-                              className="text-slate-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
-                      <button 
-                        onClick={handleResetWorkspace}
-                        className="w-full text-center py-3 bg-red-500/10 text-red-400 rounded-xl text-xs font-black"
-                      >
-                        Reset Workspace Files
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-
                 {activeMobileTab === 'editor' && (
                   <motion.div
                     key="editor"
@@ -563,13 +517,22 @@ img
                         {getFileIcon(activeFile)}
                         <span className="truncate">{activeFile}</span>
                       </div>
-                      <button 
-                        onClick={handleDownloadFile}
-                        className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-emerald-400"
-                        title="Download file"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={handleClearActiveFile}
+                          className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-red-400 transition"
+                          title="Clear program"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={handleDownloadFile}
+                          className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-emerald-400 transition"
+                          title="Download file"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="h-[calc(100%-36px)] relative">
@@ -636,16 +599,6 @@ img
 
             {/* Bottom Menu Navigation Tabs for mobile screens */}
             <nav className="h-[56px] bg-slate-950 border-t border-white/5 flex items-center justify-around z-30 select-none shrink-0">
-              <button 
-                onClick={() => setActiveMobileTab('explorer')}
-                className={`flex flex-col items-center gap-1 text-[10px] font-bold transition ${
-                  activeMobileTab === 'explorer' ? 'text-emerald-400' : 'text-slate-500'
-                }`}
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>Explorer</span>
-              </button>
-              
               <button 
                 onClick={() => setActiveMobileTab('editor')}
                 className={`flex flex-col items-center gap-1 text-[10px] font-bold transition ${
@@ -834,6 +787,128 @@ plt.plot([1, 2, 3], [5, 10, 8])
 plt.show()`}
                   </pre>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 5. Mobile Explorer Drawer overlay */}
+      <AnimatePresence>
+        {isMobile && showMobileSidebar && (
+          <div className="fixed inset-0 z-50 flex overflow-hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMobileSidebar(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-[280px] max-w-[85vw] h-full bg-[#070b19] border-r border-white/10 flex flex-col p-4 shadow-2xl z-10 overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                    <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-3.5 w-auto object-contain" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">FILES EXPLORER</span>
+                </div>
+                <button 
+                  onClick={() => setShowMobileSidebar(false)}
+                  className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Workspace Files</span>
+                <button 
+                  onClick={() => setShowNewFileForm(!showNewFileForm)}
+                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-emerald-500 text-slate-950 rounded-lg hover:bg-emerald-600 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> File
+                </button>
+              </div>
+
+              {/* Create file popup in Mobile Sidebar */}
+              {showNewFileForm && (
+                <div className="bg-slate-950/80 p-3 rounded-2xl border border-emerald-500/20 mb-4 flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-emerald-400">Create New File</span>
+                    <button onClick={() => setShowNewFileForm(false)} className="text-slate-400"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                  <div className="flex gap-1 bg-slate-900 rounded-lg p-0.5 border border-white/5">
+                    {['.py', '.csv', '.txt', '.md'].map(ext => (
+                      <button
+                        key={ext}
+                        onClick={() => setFileType(ext)}
+                        className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition ${fileExtension === ext ? 'bg-emerald-500 text-slate-950' : 'text-slate-400'}`}
+                      >
+                        {ext}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={newFileName}
+                    onChange={(e) => setNewFileName(e.target.value)}
+                    placeholder="file_name"
+                    className="bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateFile()}
+                  />
+                  <button onClick={handleCreateFile} className="w-full py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl">
+                    Create File
+                  </button>
+                </div>
+              )}
+
+              {/* File list */}
+              <div className="space-y-1 flex-1 overflow-y-auto pr-1">
+                {Object.keys(files).map((name) => (
+                  <div 
+                    key={name}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition ${
+                      activeFile === name ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-950/20 border-white/5 text-slate-300'
+                    }`}
+                  >
+                    <button 
+                      onClick={() => {
+                        setActiveFile(name);
+                        setShowMobileSidebar(false);
+                        setActiveMobileTab('editor'); // Auto swap to editor on selection
+                      }}
+                      className="flex-1 flex items-center gap-2.5 text-left truncate text-xs font-medium"
+                    >
+                      {getFileIcon(name)}
+                      <span className="truncate">{name}</span>
+                    </button>
+                    {name !== 'main.py' && (
+                      <button 
+                        onClick={() => handleDeleteFile(name)}
+                        className="text-slate-500 hover:text-red-400 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 border-t border-white/5 flex flex-col gap-2 mt-4">
+                <button 
+                  onClick={handleResetWorkspace}
+                  className="w-full text-center py-2.5 bg-red-500/10 text-red-400 rounded-xl text-xs font-bold hover:bg-red-500/20 transition"
+                >
+                  Reset Workspace Files
+                </button>
               </div>
             </motion.div>
           </div>
