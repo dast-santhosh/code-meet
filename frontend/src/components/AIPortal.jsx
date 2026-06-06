@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Send, X, Minus, Sparkles, Maximize2, Bot } from 'lucide-react';
 import useAppStore from '../store';
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API || "";
 const GROQ_MODEL = "llama3-8b-8192";
 
 export default function AIPortal() {
@@ -63,7 +63,7 @@ export default function AIPortal() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error("Invalid or unauthorized Groq API Key (401). Please verify your VITE_GROQ_API_KEY environment variable in settings.");
+          throw new Error("Invalid or unauthorized Groq API Key (401). Please verify your VITE_GROQ_API environment variable in Vercel settings.");
         }
         throw new Error(`Failed to contact tutor service (Status: ${response.status})`);
       }
