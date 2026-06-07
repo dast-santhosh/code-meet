@@ -5,6 +5,8 @@ import { ParticipantVideo } from './VideoGrid';
 
 export default function InAppPipWidget({
   commandant,
+  commandantCode,
+  userProfile,
   localStream,
   remoteStreams,
   micMuted,
@@ -17,7 +19,7 @@ export default function InAppPipWidget({
   activeWorkspace,
   onChangeWorkspace
 }) {
-  const isSelfCmd = commandant && commandant.isLocal;
+  const isSelfCmd = commandant && userProfile && commandant.userId === userProfile.uid;
   const cmdStream = commandant
     ? (isSelfCmd ? localStream : remoteStreams[commandant.userId])
     : null;
@@ -60,9 +62,8 @@ export default function InAppPipWidget({
               className="w-full h-full object-cover border-0 rounded-lg"
             />
           ) : (
-            <div className="text-center p-2 text-[9px] text-slate-500 font-bold uppercase">
-              <div>{commandant.name}</div>
-              <div className="text-[7px] font-normal text-slate-600 mt-0.5">Camera Off</div>
+            <div className="w-full h-full bg-black/60 p-2 overflow-auto text-[8px] font-mono text-emerald-400 select-text leading-relaxed whitespace-pre-wrap border border-white/5 rounded-lg text-left">
+              {commandantCode || "# Code is empty"}
             </div>
           )
         ) : (

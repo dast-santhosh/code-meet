@@ -150,41 +150,45 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0a0a0a] text-slate-100 p-8 font-sans">
       
       {/* Dashboard Top Header */}
-      <div className="max-w-5xl mx-auto flex items-center justify-between border-b border-white/5 pb-6 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-white border border-white/10 flex items-center justify-center p-1.5">
+      <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-6 mb-8">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="w-12 h-12 rounded-full bg-white border border-white/10 flex items-center justify-center p-1.5 flex-shrink-0">
             <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="w-7 h-7 object-contain" />
           </div>
-          <div>
-            <h1 className="text-xl font-black font-outfit tracking-wide uppercase text-slate-200">
+          <div className="text-left">
+            <h1 className="text-lg md:text-xl font-black font-outfit tracking-wide uppercase text-slate-200 leading-tight">
               DevShaala Code & Meet
             </h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1">
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1 mt-0.5">
               <Shield className="w-3 h-3 text-slate-400" />
               {role === 'commandant' ? 'Mentor Control Station' : 'Student Cadet Lounge'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden sm:block">
+        <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto border-t border-white/5 pt-4 md:border-t-0 md:pt-0">
+          <div className="text-left md:text-right">
             <p className="text-xs font-bold text-slate-300">{userProfile?.name}</p>
             <p className="text-[10px] text-slate-500 uppercase font-semibold">{userProfile?.email}</p>
           </div>
-          <button 
-            onClick={() => navigate('/ide')} 
-            className="p-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
-          >
-            <Terminal className="w-4 h-4" />
-            <span>Open IDE</span>
-          </button>
-          <button 
-            onClick={handleLogout} 
-            className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-2xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => navigate('/ide')} 
+              className="p-2.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
+              title="Open IDE"
+            >
+              <Terminal className="w-4 h-4" />
+              <span>Open IDE</span>
+            </button>
+            <button 
+              onClick={handleLogout} 
+              className="p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl transition flex items-center justify-center gap-1.5 text-xs font-bold cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 

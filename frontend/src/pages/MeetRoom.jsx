@@ -948,6 +948,8 @@ img
         </div>
         <InAppPipWidget
           commandant={commandant}
+          commandantCode={commandant ? (peerCodes[commandant.userId] || "") : ""}
+          userProfile={userProfile}
           localStream={localStream}
           remoteStreams={remoteStreams}
           micMuted={micMuted}
@@ -969,6 +971,7 @@ img
     return (
       <MobileMeetRoom
         squadronId={squadronId}
+        peerCodes={peerCodes}
         userProfile={userProfile}
         role={role}
         wsConnected={wsConnected}

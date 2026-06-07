@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, Minus, Sparkles, Maximize2, Bot } from 'lucide-react';
 import useAppStore from '../store';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -19,14 +19,6 @@ export default function AIPortal() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isMinimized]);
-
-  if (!showAI) return null;
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -81,6 +73,107 @@ export default function AIPortal() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isMinimized]);
+
+  if (window.innerWidth < 768) {
+    return (
+      <AnimatePresence>
+        {showAI && (
+          <div className="fixed inset-0 z-[99999] flex overflow-hidden">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+              onClick={() => setShowAI(false)} 
+            />
+            {/* Top Drawer */}
+            <motion.div
+              initial={{ y: '-100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full h-[75vh] bg-[#121212] border-b border-white/10 flex flex-col p-4 shadow-2xl z-10 text-left rounded-b-3xl select-none"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <span className="text-xs font-bold font-orbitron tracking-wider text-slate-200">DEVSHAALA AI TUTOR</span>
+                </div>
+                <button 
+                  onClick={() => setShowAI(false)}
+                  className="p-1.5 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Chat messages */}
+              <div className="flex-1 p-3 overflow-y-auto space-y-4 bg-slate-950/20 border border-white/5 rounded-2xl mb-3 text-xs select-text">
+                {messages.map((msg, index) => (
+                  <div key={index} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role !== 'user' && (
+                      <div className="w-6 h-6 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-3 h-3 text-slate-300" />
+                      </div>
+                    )}
+                    <div className={`max-w-[85%] px-3 py-2.5 rounded-2xl leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-neutral-800 text-slate-100 border border-neutral-700/60 rounded-tr-none whitespace-pre-line'
+                        : 'bg-slate-800/70 text-slate-200 border border-white/5 rounded-tl-none'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        msg.content
+                      ) : (
+                        <MarkdownRenderer content={msg.content} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {loading && (
+                  <div className="flex gap-2.5 justify-start">
+                    <div className="w-6 h-6 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0 animate-spin">
+                      <Sparkles className="w-3 h-3 text-slate-300" />
+                    </div>
+                    <div className="bg-slate-800/70 text-slate-400 px-3 py-2 rounded-2xl border border-white/5 rounded-tl-none italic">
+                      Tutor is thinking...
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat Input */}
+              <form onSubmit={handleSend} className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  disabled={loading}
+                  placeholder="Ask AI Tutor a concept..."
+                  className="flex-1 bg-slate-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/20 transition disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl transition flex items-center justify-center disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  if (window.innerWidth < 768) return null;
+  if (!showAI) return null;
 
   return (
     <motion.div
