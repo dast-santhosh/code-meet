@@ -192,6 +192,8 @@ export default function MobileMeetRoom({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const hasEnteredFullscreenOnceRef = useRef(false);
+
   // Full Screen Management
   const requestFullScreen = async () => {
     try {
@@ -203,6 +205,7 @@ export default function MobileMeetRoom({
       } else if (docEl.msRequestFullscreen) {
         await docEl.msRequestFullscreen();
       }
+      hasEnteredFullscreenOnceRef.current = true;
       setShowExitAlert(false);
     } catch (err) {
       console.log("Fullscreen request rejected:", err);
@@ -214,11 +217,19 @@ export default function MobileMeetRoom({
     requestFullScreen();
 
     const handleFullscreenChange = () => {
-      const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-      if (!isFullscreen) {
-        setShowExitAlert(true);
-      } else {
+      const active = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+      
+      const isSupported = typeof document.documentElement.requestFullscreen === 'function' || 
+                          typeof document.documentElement.webkitRequestFullscreen === 'function' || 
+                          typeof document.documentElement.msRequestFullscreen === 'function';
+      
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+      if (active) {
+        hasEnteredFullscreenOnceRef.current = true;
         setShowExitAlert(false);
+      } else if (isSupported && !isStandalone && hasEnteredFullscreenOnceRef.current) {
+        setShowExitAlert(true);
       }
     };
 

@@ -102,6 +102,21 @@ export default function Dashboard() {
       toast.success(`Classroom session started for ${squadron.name}!`, {
         icon: <Award className="w-4 h-4 text-emerald-400" />
       });
+
+      // Request fullscreen on user gesture
+      try {
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+        } else if (docEl.msRequestFullscreen) {
+          await docEl.msRequestFullscreen();
+        }
+      } catch (e) {
+        console.log("Fullscreen request failed:", e);
+      }
+
       navigate(`/meet/${squadron.id}`);
     } catch (err) {
       toast.error("Failed to start session: " + err.message);
@@ -118,9 +133,24 @@ export default function Dashboard() {
     }
   };
 
-  const handleJoinClass = (squadron) => {
+  const handleJoinClass = async (squadron) => {
     setActiveMeet(squadron.id, squadron);
     toast.success(`Joining session: ${squadron.name}`);
+
+    // Request fullscreen on user gesture
+    try {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if (docEl.webkitRequestFullscreen) {
+        await docEl.webkitRequestFullscreen();
+      } else if (docEl.msRequestFullscreen) {
+        await docEl.msRequestFullscreen();
+      }
+    } catch (e) {
+      console.log("Fullscreen request failed:", e);
+    }
+
     navigate(`/meet/${squadron.id}`);
   };
 
