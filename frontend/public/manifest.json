@@ -1,0 +1,17 @@
+{
+  "short_name": "DevShaala Meet",
+  "name": "DevShaala Code & Meet Workspace",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/dashboard",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "display": "standalone",
+  "orientation": "portrait"
+}

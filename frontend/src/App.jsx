@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MeetRoom from './pages/MeetRoom';
 import MobileIDE from './pages/MobileIDE';
+import PwaInstallPrompt from './components/PwaInstallPrompt';
 
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
 
   return (
     <div className={getThemeClass()}>
+      <PwaInstallPrompt />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />

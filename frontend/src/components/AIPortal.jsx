@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, X, Minus, Sparkles, Maximize2, Bot } from 'lucide-react';
 import useAppStore from '../store';
+import MarkdownRenderer from './MarkdownRenderer';
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API || "";
-const GROQ_MODEL = "llama3-8b-8192";
+const GROQ_MODEL = "llama-3.1-8b-instant";
 
 export default function AIPortal() {
   const { showAI, setShowAI } = useAppStore();
@@ -126,12 +127,16 @@ export default function AIPortal() {
                     <Sparkles className="w-3 h-3 text-slate-300" />
                   </div>
                 )}
-                <div className={`max-w-[80%] px-3 py-2.5 rounded-2xl whitespace-pre-line leading-relaxed ${
+                <div className={`max-w-[80%] px-3 py-2.5 rounded-2xl leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-neutral-800 text-slate-100 border border-neutral-700/60 rounded-tr-none'
+                    ? 'bg-neutral-800 text-slate-100 border border-neutral-700/60 rounded-tr-none whitespace-pre-line'
                     : 'bg-slate-800/70 text-slate-200 border border-white/5 rounded-tl-none'
                 }`}>
-                  {msg.content}
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <MarkdownRenderer content={msg.content} />
+                  )}
                 </div>
               </div>
             ))}

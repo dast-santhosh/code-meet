@@ -23,6 +23,10 @@ import ChatPortal from '../components/ChatPortal';
 import AIPortal from '../components/AIPortal';
 import SearchPortal from '../components/SearchPortal';
 import DocumentationModal from '../components/DocumentationModal';
+import MobileMeetRoom from './MobileMeetRoom';
+import InAppPipWidget from '../components/InAppPipWidget';
+import Dashboard from './Dashboard';
+import MobileIDE from './MobileIDE';
 
 function PresenterScreenPlayer({ stream }) {
   const videoRef = useRef(null);
@@ -129,6 +133,8 @@ export default function MeetRoom() {
   const screenPeersRef = useRef({});
 
   const commandant = participants.find(p => p.role === 'commandant');
+  const [isMinimizedApp, setIsMinimizedApp] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState('dashboard');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -928,6 +934,90 @@ img
   };
 
   // Previews loop helper
+
+  // In-App Minimized PIP view
+  if (isMinimizedApp) {
+    return (
+      <div className="h-screen w-full bg-[#0a0a0a] relative overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-auto">
+          {activeWorkspace === 'dashboard' ? (
+            <Dashboard />
+          ) : (
+            <MobileIDE />
+          )}
+        </div>
+        <InAppPipWidget
+          commandant={commandant}
+          localStream={localStream}
+          remoteStreams={remoteStreams}
+          micMuted={micMuted}
+          videoMuted={videoMuted}
+          handRaised={handRaised}
+          onToggleMic={handleToggleMic}
+          onToggleVideo={handleToggleVideo}
+          onToggleHand={handleToggleHandRaise}
+          onRestore={() => setIsMinimizedApp(false)}
+          activeWorkspace={activeWorkspace}
+          onChangeWorkspace={setActiveWorkspace}
+        />
+      </div>
+    );
+  }
+
+  // Mobile Version classroom layout
+  if (isMobile) {
+    return (
+      <MobileMeetRoom
+        squadronId={squadronId}
+        userProfile={userProfile}
+        role={role}
+        wsConnected={wsConnected}
+        pyodideLoaded={pyodideLoaded}
+        isRunning={isRunning}
+        consoleOutput={consoleOutput}
+        setConsoleOutput={setConsoleOutput}
+        matplotlibPlot={matplotlibPlot}
+        setMatplotlibPlot={setMatplotlibPlot}
+        files={files}
+        setFiles={setFiles}
+        activeFile={activeFile}
+        setActiveFile={setActiveFile}
+        presenterId={presenterId}
+        localScreenStream={localScreenStream}
+        remoteScreenStream={remoteScreenStream}
+        localStream={localStream}
+        remoteStreams={remoteStreams}
+        runPythonCode={runPythonCode}
+        handleUpdateFileContent={handleUpdateFileContent}
+        micMuted={micMuted}
+        videoMuted={videoMuted}
+        handRaised={handRaised}
+        onToggleMic={handleToggleMic}
+        onToggleVideo={handleToggleVideo}
+        onToggleHand={handleToggleHandRaise}
+        onExitMeet={handleExitMeet}
+        chatMessages={chatMessages}
+        onSendMessage={handleSendMessage}
+        showChat={showChat}
+        setShowChat={setShowChat}
+        showAI={showAI}
+        setShowAI={setShowAI}
+        showSearch={showSearch}
+        setShowSearch={setShowSearch}
+        participants={participants}
+        raisedHands={raisedHands}
+        onMinimizeRoom={() => setIsMinimizedApp(true)}
+        handleCreateFile={handleCreateFile}
+        handleDeleteFile={handleDeleteFile}
+        newFileName={newFileName}
+        setNewFileName={setNewFileName}
+        showNewFileForm={showNewFileForm}
+        setShowNewFileForm={setShowNewFileForm}
+        fileType={fileType}
+        setFileType={setFileType}
+      />
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] text-slate-100 overflow-hidden font-sans">
