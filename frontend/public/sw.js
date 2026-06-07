@@ -1,4 +1,4 @@
-const CACHE_NAME = 'devshaala-meet-cache-v1';
+const CACHE_NAME = 'devshaala-meet-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -20,6 +20,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('Clearing old service worker cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -30,10 +31,22 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through network-first strategy for dynamic meet states
+  // Always prioritize Network First for all application files to ensure updates reflect instantly.
+  // Fall back to Cache Storage only if the user is completely offline.
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
+    fetch(event.request)
+      .then((response) => {
+        // If response is valid, clone and cache it for offline fallback
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });

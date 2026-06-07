@@ -18,6 +18,29 @@ export default function App() {
   const { setUser, setUserProfile, setAuthLoading, authLoading, user, editorTheme } = useAppStore();
 
   useEffect(() => {
+    // Fool-proof Cache-Busting Version Check
+    const CURRENT_VERSION = '1.0.3'; // Increment on major releases to force cache purge
+    const storedVersion = localStorage.getItem('devshaala_meet_app_version');
+    if (storedVersion !== CURRENT_VERSION) {
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        }).catch(err => console.log('Error clearing cache:', err));
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let reg of registrations) {
+            reg.unregister();
+          }
+        }).catch(err => console.log('Error unregistering SW:', err));
+      }
+      localStorage.setItem('devshaala_meet_app_version', CURRENT_VERSION);
+      window.location.reload(true);
+      return;
+    }
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setAuthLoading(true);
       if (firebaseUser) {

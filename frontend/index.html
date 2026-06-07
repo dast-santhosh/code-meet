@@ -23,9 +23,22 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('ServiceWorker registered:', reg.scope))
-            .catch(err => console.log('ServiceWorker registration failed:', err));
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('ServiceWorker registered:', reg.scope);
+            
+            // Listen for updatefound event to detect new deployments
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('New updates detected. Refreshing application...');
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+          }).catch(err => console.log('ServiceWorker registration failed:', err));
         });
       }
     </script>
