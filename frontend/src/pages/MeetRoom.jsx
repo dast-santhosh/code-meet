@@ -27,6 +27,7 @@ import MobileMeetRoom from './MobileMeetRoom';
 import InAppPipWidget from '../components/InAppPipWidget';
 import Dashboard from './Dashboard';
 import MobileIDE from './MobileIDE';
+import PwaInstallPrompt from '../components/PwaInstallPrompt';
 
 function PresenterScreenPlayer({ stream }) {
   const videoRef = useRef(null);
@@ -1024,6 +1025,7 @@ img
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0a] text-slate-100 overflow-hidden font-sans">
+      <PwaInstallPrompt />
       
       {/* 1. Upper Menu Bar */}
       <header className="h-[48px] bg-slate-950/70 border-b border-white/5 flex items-center justify-between px-4 z-40 select-none glass-panel">
@@ -1033,7 +1035,7 @@ img
             className={`flex items-center gap-2 ${isMobile ? 'cursor-pointer active:opacity-75 hover:opacity-90 transition select-none' : ''}`}
           >
             <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center p-0.5 flex-shrink-0">
-              <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="h-4.5 w-auto object-contain" />
+              <img src="/logo.png" alt="DevShaala" className="h-4.5 w-auto object-contain" />
             </div>
             <span className="font-orbitron font-black text-xs tracking-wider text-emerald-400 flex items-center gap-1">
               DEVSHAALA Meet

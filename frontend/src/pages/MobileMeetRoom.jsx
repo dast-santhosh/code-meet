@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast';
 import { ParticipantVideo } from '../components/VideoGrid';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import PwaInstallPrompt from '../components/PwaInstallPrompt';
 
 export default function MobileMeetRoom({
   squadronId,
@@ -63,7 +64,16 @@ export default function MobileMeetRoom({
   const [editorInstance, setEditorInstance] = useState(null);
   const [showControlHub, setShowControlHub] = useState(false);
   const [showFilesDrawer, setShowFilesDrawer] = useState(false);
-  const [showExitAlert, setShowExitAlert] = useState(false);
+  const isFullscreenSupported = typeof document.documentElement.requestFullscreen === 'function' || 
+                                typeof document.documentElement.webkitRequestFullscreen === 'function' || 
+                                typeof document.documentElement.msRequestFullscreen === 'function';
+  const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+
+  const [hasEnteredFullscreenOnce, setHasEnteredFullscreenOnce] = useState(isCurrentlyFullscreen);
+  const [showExitAlert, setShowExitAlert] = useState(
+    isFullscreenSupported && !isStandaloneMode && !isCurrentlyFullscreen
+  );
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
   const [editorTheme, setEditorTheme] = useState('vs-dark');
   const [editorFontSize, setEditorFontSize] = useState(13);
@@ -192,8 +202,6 @@ export default function MobileMeetRoom({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const hasEnteredFullscreenOnceRef = useRef(false);
-
   // Full Screen Management
   const requestFullScreen = async () => {
     try {
@@ -205,7 +213,7 @@ export default function MobileMeetRoom({
       } else if (docEl.msRequestFullscreen) {
         await docEl.msRequestFullscreen();
       }
-      hasEnteredFullscreenOnceRef.current = true;
+      setHasEnteredFullscreenOnce(true);
       setShowExitAlert(false);
     } catch (err) {
       console.log("Fullscreen request rejected:", err);
@@ -219,16 +227,10 @@ export default function MobileMeetRoom({
     const handleFullscreenChange = () => {
       const active = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
       
-      const isSupported = typeof document.documentElement.requestFullscreen === 'function' || 
-                          typeof document.documentElement.webkitRequestFullscreen === 'function' || 
-                          typeof document.documentElement.msRequestFullscreen === 'function';
-      
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-
       if (active) {
-        hasEnteredFullscreenOnceRef.current = true;
+        setHasEnteredFullscreenOnce(true);
         setShowExitAlert(false);
-      } else if (isSupported && !isStandalone && hasEnteredFullscreenOnceRef.current) {
+      } else if (isFullscreenSupported && !isStandaloneMode) {
         setShowExitAlert(true);
       }
     };
@@ -263,6 +265,7 @@ export default function MobileMeetRoom({
 
   return (
     <div className="h-screen w-full bg-[#0a0a0a] text-slate-100 flex flex-col overflow-hidden relative select-none">
+      <PwaInstallPrompt />
       
       {/* Exited Full Screen Alert Overlay */}
       {showExitAlert && (
@@ -270,15 +273,19 @@ export default function MobileMeetRoom({
           <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 animate-pulse">
             <Maximize className="w-8 h-8" />
           </div>
-          <h2 className="text-base font-black font-orbitron text-white uppercase tracking-wider">Fullscreen Mode Exited</h2>
+          <h2 className="text-base font-black font-orbitron text-white uppercase tracking-wider">
+            {hasEnteredFullscreenOnce ? "Fullscreen Mode Exited" : "Enter Learning Space"}
+          </h2>
           <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-            Exiting full-screen class mode breaks discipline and classroom focus. Please return to enter learning space.
+            {hasEnteredFullscreenOnce 
+              ? "Exiting full-screen class mode breaks discipline and classroom focus. Please return to enter learning space."
+              : "To ensure discipline and classroom focus, DevShaala classroom requires full-screen mode."}
           </p>
           <button
             onClick={requestFullScreen}
             className="px-6 py-2.5 bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition active:scale-95 shadow-[0_4px_20px_rgba(16,185,129,0.3)] cursor-pointer"
           >
-            Re-enter Class
+            {hasEnteredFullscreenOnce ? "Re-enter Class" : "Enter Class"}
           </button>
         </div>
       )}

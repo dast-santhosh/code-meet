@@ -5,6 +5,7 @@ import { db, auth } from '../firebase/config';
 import useAppStore from '../store';
 import toast from 'react-hot-toast';
 import { Video, LogOut, Play, Square, Loader2, BookOpen, UserCheck, Shield, Award, Terminal } from 'lucide-react';
+import PwaInstallPrompt from '../components/PwaInstallPrompt';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -178,12 +179,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-slate-100 p-8 font-sans">
+      <PwaInstallPrompt />
       
       {/* Dashboard Top Header */}
       <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-6 mb-8">
         <div className="flex items-center gap-3 w-full md:w-auto">
           <div className="w-12 h-12 rounded-full bg-white border border-white/10 flex items-center justify-center p-1.5 flex-shrink-0">
-            <img src="https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png" alt="DevShaala" className="w-7 h-7 object-contain" />
+            <img src="/logo.png" alt="DevShaala" className="w-7 h-7 object-contain" />
           </div>
           <div className="text-left">
             <h1 className="text-lg md:text-xl font-black font-outfit tracking-wide uppercase text-slate-200 leading-tight">

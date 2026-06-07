@@ -3,13 +3,13 @@
   "name": "DevShaala Code & Meet Workspace",
   "icons": [
     {
-      "src": "https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "https://i.ibb.co/5hLjp6qw/Dev-Shaala-Logo.png",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
