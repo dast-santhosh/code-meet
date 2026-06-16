@@ -337,16 +337,20 @@ img
     }
   };
 
+  const terminateWorker = () => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+    }
+    setIsRunning(false);
+    setIsWaitingForInput(false);
+    initWorker();
+    toast.success("Python execution terminated.");
+  };
+
   const handleCloseTerminal = () => {
     setIsTerminalOpen(false);
     if (isRunning) {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-      setIsRunning(false);
-      setIsWaitingForInput(false);
-      initWorker();
-      toast.success("Python script execution terminated.");
+      terminateWorker();
     }
   };
 
@@ -690,16 +694,47 @@ img
                         <Terminal className="w-4 h-4 text-emerald-400" />
                         <span className="text-[10px] font-bold font-orbitron tracking-wider text-slate-400">OUTPUT CONSOLE</span>
                       </div>
-                      <button 
-                        onClick={() => setConsoleOutput('')}
-                        className="text-[10px] text-slate-400 bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded border border-white/5"
-                      >
-                        Clear
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {isRunning && (
+                          <button 
+                            onClick={terminateWorker}
+                            className="text-[10px] text-red-400 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-0.5 rounded border border-red-500/20 font-bold transition"
+                          >
+                            Stop
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => setConsoleOutput('')}
+                          className="text-[10px] text-slate-400 bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded border border-white/5"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
-                    <pre className="flex-1 p-4 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text bg-[#03050a]/90">
-                      {!pyodideLoaded ? pyodideLoadingProgress : consoleOutput || "Console is empty. Run your code to display logs."}
-                    </pre>
+                    <div className="flex-1 p-4 overflow-hidden flex flex-col bg-[#03050a]/90">
+                      <pre className="flex-1 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                        {!pyodideLoaded ? pyodideLoadingProgress : consoleOutput || "Console is empty. Run your code to display logs."}
+                      </pre>
+                      
+                      {isWaitingForInput && (
+                        <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-2 font-mono text-xs select-none animate-fadeIn shrink-0">
+                          <span className="text-emerald-400 font-bold shrink-0">&gt;_ INPUT:</span>
+                          <input
+                            type="text"
+                            value={terminalInputVal}
+                            onChange={(e) => setTerminalInputVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                submitTerminalInput();
+                              }
+                            }}
+                            autoFocus
+                            placeholder="Type response and press Enter..."
+                            className="flex-1 bg-transparent border-0 outline-none text-slate-200 caret-emerald-400 font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
 

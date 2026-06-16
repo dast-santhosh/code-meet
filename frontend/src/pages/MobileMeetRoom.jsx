@@ -59,7 +59,12 @@ export default function MobileMeetRoom({
   showNewFileForm,
   setShowNewFileForm,
   fileType,
-  setFileType
+  setFileType,
+  isWaitingForInput,
+  terminalInputVal,
+  setTerminalInputVal,
+  submitTerminalInput,
+  terminateWorker
 }) {
   const [editorInstance, setEditorInstance] = useState(null);
   const [showControlHub, setShowControlHub] = useState(false);
@@ -501,15 +506,40 @@ export default function MobileMeetRoom({
               <div className="absolute bottom-0 left-0 right-0 max-h-[120px] bg-black/95 border-t border-white/10 flex flex-col z-40 select-text">
                 <div className="flex items-center justify-between px-3 py-1 bg-neutral-900 border-b border-white/5 text-[8px] font-bold text-emerald-400 uppercase select-none">
                   <span>Output Console</span>
-                  <button onClick={() => setConsoleOutput('')} className="text-slate-500 hover:text-white uppercase font-bold text-[7px] cursor-pointer">
-                    Clear
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {isRunning && (
+                      <button onClick={terminateWorker} className="text-red-400 hover:text-red-300 uppercase font-bold text-[7px] cursor-pointer">
+                        Stop
+                      </button>
+                    )}
+                    <button onClick={() => setConsoleOutput('')} className="text-slate-500 hover:text-white uppercase font-bold text-[7px] cursor-pointer">
+                      Clear
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 text-[9px] font-mono text-slate-300 whitespace-pre-wrap select-text">
                   {consoleOutput}
                   {matplotlibPlot && (
                     <div className="mt-2 bg-white max-w-[140px] p-1 rounded-lg">
                       <img src={matplotlibPlot} alt="Plot Output" className="max-w-full h-auto" />
+                    </div>
+                  )}
+                  {isWaitingForInput && (
+                    <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-2 font-mono text-[9px] select-none animate-fadeIn shrink-0">
+                      <span className="text-emerald-400 font-bold shrink-0">&gt;_ INPUT:</span>
+                      <input
+                        type="text"
+                        value={terminalInputVal}
+                        onChange={(e) => setTerminalInputVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            submitTerminalInput();
+                          }
+                        }}
+                        autoFocus
+                        placeholder="Type response and press Enter..."
+                        className="flex-1 bg-transparent border-0 outline-none text-slate-200 caret-emerald-400 font-mono text-[9px]"
+                      />
                     </div>
                   )}
                 </div>

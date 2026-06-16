@@ -102,6 +102,10 @@ export default function MeetRoom() {
   const [isRunning, setIsRunning] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState('');
   const [matplotlibPlot, setMatplotlibPlot] = useState(null);
+  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
+  const [isWaitingForInput, setIsWaitingForInput] = useState(false);
+  const [terminalInputVal, setTerminalInputVal] = useState('');
+  const workerRef = useRef(null);
 
   // Sidebar navigation toggles
   const [activeLeftPanel, setActiveLeftPanel] = useState('explorer'); // 'explorer', 'people', null
@@ -143,47 +147,189 @@ export default function MeetRoom() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load Pyodide on mount
-  useEffect(() => {
-    const initPyodide = async () => {
-      try {
-        if (window.loadPyodide) {
-          // Temporarily disable AMD loader to prevent Pyodide and Emscripten package scripts from being hijacked by Monaco's AMD loader
-          const saveDefine = window.define;
-          const saveRequire = window.require;
-          window.define = undefined;
-          window.require = undefined;
+  // Boot Pyodide WASM Runtime in a Web Worker on load
+  const initWorker = () => {
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    const backendUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://');
 
-          let pyInst;
-          try {
-            // Preload WASM engine
-            setConsoleOutput("Initializing DevShaala Python engine (WASM)...");
-            pyInst = await window.loadPyodide();
-            window.pyodideInstance = pyInst;
-            
-            // Load base scientific libraries
-            setConsoleOutput("Loading Pandas, NumPy, Matplotlib scientific libraries...");
-            await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
-          } finally {
-            // Restore AMD loader
-            if (saveDefine) window.define = saveDefine;
-            if (saveRequire) window.require = saveRequire;
+    const workerCode = `
+      importScripts("https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js");
+
+      let pyodideInstance = null;
+
+      self.syncStdout = (text) => {
+        postMessage({ type: 'stdout', text });
+      };
+
+      async function initPyodide() {
+        try {
+          pyodideInstance = await loadPyodide();
+          await pyodideInstance.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          postMessage({ type: 'ready' });
+        } catch (e) {
+          postMessage({ type: 'error_init', message: e.message });
+        }
+      }
+
+      onmessage = async (e) => {
+        const { type, code, files, activeFile } = e.data;
+        if (type === 'init') {
+          await initPyodide();
+        } else if (type === 'run') {
+          if (!pyodideInstance) {
+            postMessage({ type: 'error', message: 'Python WASM Engine is not loaded yet.' });
+            return;
           }
 
-          setPyodideLoaded(true);
-          setConsoleOutput("DevShaala Python engine ready.\nRun options are now active in the sidebar.");
-        } else {
-          setConsoleOutput("[Error] Failed to load Python runtime from CDN. Check your network.");
+          try {
+            // Write all project files to worker's virtual filesystem
+            Object.entries(files).forEach(([name, content]) => {
+              pyodideInstance.FS.writeFile(name, content);
+            });
+
+            // Set up stdout, stderr redirection and override builtins.input
+            pyodideInstance.runPython(\`
+import sys
+import io
+import builtins
+import js
+import json
+
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+
+def custom_input(prompt_str=""):
+    if prompt_str:
+        sys.stdout.write(prompt_str)
+    sys.stdout.flush()
+    if hasattr(js, "syncStdout"):
+        js.syncStdout(sys.stdout.getvalue())
+    
+    # Notify main thread that we are waiting for input
+    js.postMessage(js.JSON.parse(json.dumps({"type": "waiting_for_input", "prompt": prompt_str})))
+
+    # Synchronous XHR to block the worker thread and wait for input from FastAPI
+    xhr = js.XMLHttpRequest.new()
+    xhr.open("GET", "${backendUrl}/api/input/get/${sessionId}", False)
+    xhr.send()
+    
+    if xhr.status == 200:
+        res = json.loads(xhr.responseText)
+        val = res.get("value", "")
+        if val is None:
+            raise KeyboardInterrupt("Execution cancelled by user.")
+        
+        sys.stdout.write(val + "\\\\n")
+        sys.stdout.flush()
+        if hasattr(js, "syncStdout"):
+            js.syncStdout(sys.stdout.getvalue())
+        return val
+    else:
+        raise OSError("Failed to fetch input from backend: " + str(xhr.status))
+
+builtins.input = custom_input
+            \`);
+
+            // Run active Python code
+            await pyodideInstance.runPythonAsync(code);
+
+            const stdout = pyodideInstance.runPython("sys.stdout.getvalue()");
+            const stderr = pyodideInstance.runPython("sys.stderr.getvalue()");
+
+            // Check matplotlib plot
+            const hasPlot = pyodideInstance.runPython(\`
+import sys
+'matplotlib' in sys.modules and len(sys.modules['matplotlib'].pyplot.get_fignums()) > 0
+            \`);
+
+            let plotBase64 = null;
+            if (hasPlot) {
+              plotBase64 = pyodideInstance.runPython(\`
+import io, base64
+import matplotlib.pyplot as plt
+buf = io.BytesIO()
+plt.savefig(buf, format='png', bbox_inches='tight')
+buf.seek(0)
+img = base64.b64encode(buf.read()).decode('utf-8')
+plt.close('all')
+img
+              \`);
+            }
+
+            postMessage({ type: 'complete', stdout, stderr, plotBase64 });
+          } catch (err) {
+            let stdout = "";
+            try {
+              stdout = pyodideInstance.runPython("sys.stdout.getvalue()");
+            } catch (e) {}
+            postMessage({ type: 'error', message: err.message, stdout });
+          }
         }
-      } catch (err) {
-        setConsoleOutput(`[Boot Error]: Engine initialization error: ${err.message}`);
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    workerRef.current = worker;
+
+    worker.onmessage = (e) => {
+      const { type, text, stdout, stderr, plotBase64, message } = e.data;
+      if (type === 'ready') {
+        setPyodideLoaded(true);
+        setConsoleOutput("DevShaala Python engine ready.\nRun options are now active in the sidebar.");
+      } else if (type === 'error_init') {
+        setConsoleOutput(`[Engine Error]: ${message}`);
+      } else if (type === 'stdout') {
+        setConsoleOutput(text);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(text);
+        }
+      } else if (type === 'waiting_for_input') {
+        setIsWaitingForInput(true);
+      } else if (type === 'complete') {
+        setIsWaitingForInput(false);
+        setIsRunning(false);
+        
+        let output = "";
+        if (stdout) output += stdout;
+        if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
+        if (!stdout && !stderr) output += "Script completed execution with no output logs.";
+
+        setConsoleOutput(output);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(output);
+        }
+
+        if (plotBase64) {
+          setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
+          const finalOutput = output + "\n\n[Matplotlib Plot Generated]: Plotted successfully.";
+          setConsoleOutput(finalOutput);
+          if (window.updateTerminalOutput) {
+            window.updateTerminalOutput(finalOutput);
+          }
+        }
+      } else if (type === 'error') {
+        setIsWaitingForInput(false);
+        setIsRunning(false);
+        
+        let errorMsg = "";
+        if (stdout) errorMsg += stdout;
+        errorMsg += `\n[System Error]:\n${message}`;
+        
+        setConsoleOutput(errorMsg);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(errorMsg);
+        }
       }
     };
-    initPyodide();
-  }, []);
 
-  // Set up global terminal updating function for Pyodide inputs
+    worker.postMessage({ type: 'init' });
+  };
+
   useEffect(() => {
+    initWorker();
+    
+    // Set up global terminal updating function
     window.updateTerminalOutput = (text) => {
       const el = document.getElementById('terminal-logs');
       if (el) {
@@ -192,7 +338,11 @@ export default function MeetRoom() {
       }
       setConsoleOutput(text);
     };
+
     return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
       delete window.updateTerminalOutput;
     };
   }, []);
@@ -828,110 +978,61 @@ export default function MeetRoom() {
   const runPythonCode = async () => {
     if (!pyodideLoaded || isRunning) return;
     setIsRunning(true);
+    setIsWaitingForInput(false);
     setConsoleOutput("Executing Python script in DevShaala console...\n");
     setMatplotlibPlot(null);
 
-    // Defer execution slightly to allow UI paint before prompt blocks
-    setTimeout(async () => {
-      try {
-        const pyInst = window.pyodideInstance;
-        
-        // Configure stdout, stderr, and override builtins.input using custom prompt
-        pyInst.runPython(`
-import sys
-import io
-import builtins
-import js
-
-sys.stdout = io.StringIO()
-sys.stderr = io.StringIO()
-
-def custom_input(prompt_str=""):
-    if prompt_str:
-        sys.stdout.write(prompt_str)
-    sys.stdout.flush()
-    if hasattr(js, "updateTerminalOutput"):
-        js.updateTerminalOutput(sys.stdout.getvalue())
-    
-    val = js.prompt(prompt_str)
-    if val is None:
-        raise KeyboardInterrupt("Execution cancelled by user.")
-    
-    sys.stdout.write(val + "\\n")
-    sys.stdout.flush()
-    if hasattr(js, "updateTerminalOutput"):
-        js.updateTerminalOutput(sys.stdout.getvalue())
-    return val
-
-builtins.input = custom_input
-        `);
-
-        // Write all project files into Pyodide virtual file system
-        Object.entries(files).forEach(([name, content]) => {
-          pyInst.FS.writeFile(name, content);
+    // Defer execution slightly to let UI paint before running
+    setTimeout(() => {
+      if (workerRef.current) {
+        workerRef.current.postMessage({
+          type: 'run',
+          code: files[activeFile] || "",
+          files: files,
+          activeFile: activeFile
         });
-
-        // Get code from active file and execute it
-        const fileCode = files[activeFile] || "";
-        await pyInst.runPythonAsync(fileCode);
-
-        // Fetch standard output and errors
-        const stdout = pyInst.runPython("sys.stdout.getvalue()");
-        const stderr = pyInst.runPython("sys.stderr.getvalue()");
-
-        let output = '';
-        if (stdout) output += stdout;
-        if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
-        if (!stdout && !stderr) output += "Code ran successfully with no printed output.";
-
-        setConsoleOutput(output);
-        if (window.updateTerminalOutput) {
-          window.updateTerminalOutput(output);
-        }
-
-        // Intercept Matplotlib plots if generated
-        const hasPlot = pyInst.runPython(`
-import sys
-'matplotlib' in sys.modules and len(sys.modules['matplotlib'].pyplot.get_fignums()) > 0
-        `);
-
-        if (hasPlot) {
-          const plotBase64 = pyInst.runPython(`
-import io, base64
-import matplotlib.pyplot as plt
-buf = io.BytesIO()
-plt.savefig(buf, format='png', bbox_inches='tight')
-buf.seek(0)
-img = base64.b64encode(buf.read()).decode('utf-8')
-plt.close('all')
-img
-          `);
-          setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
-          const finalOutputWithPlot = output + "\n\n[Matplotlib Plot Generated]: Plotted successfully below.";
-          setConsoleOutput(finalOutputWithPlot);
-          if (window.updateTerminalOutput) {
-            window.updateTerminalOutput(finalOutputWithPlot);
-          }
-        }
-
-      } catch (err) {
-        let stdout = "";
-        try {
-          stdout = window.pyodideInstance.runPython("sys.stdout.getvalue()");
-        } catch (e) {}
-        
-        let errorMsg = "";
-        if (stdout) errorMsg += stdout;
-        errorMsg += `\n[Syntax/Execution Error]:\n${err.message}`;
-        
-        setConsoleOutput(errorMsg);
-        if (window.updateTerminalOutput) {
-          window.updateTerminalOutput(errorMsg);
-        }
-      } finally {
+      } else {
         setIsRunning(false);
+        toast.error("Web Worker is not active.");
       }
     }, 100);
+  };
+
+  const terminateWorker = () => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+    }
+    setIsRunning(false);
+    setIsWaitingForInput(false);
+    initWorker();
+    toast.success("Python execution terminated.");
+  };
+
+  const submitTerminalInput = async () => {
+    const val = terminalInputVal;
+    setTerminalInputVal('');
+    setIsWaitingForInput(false);
+    
+    // Append the user's input to the logs locally to simulate a real terminal
+    const nextLogs = consoleOutput + val + "\n";
+    setConsoleOutput(nextLogs);
+    const el = document.getElementById('terminal-logs');
+    if (el) {
+      el.textContent = nextLogs;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    try {
+      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+      const backendUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+      await fetch(`${backendUrl}/api/input/submit/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: val })
+      });
+    } catch (e) {
+      toast.error("Failed to submit input: " + e.message);
+    }
   };
 
   // Create local file in explorer
@@ -1078,6 +1179,11 @@ img
         setShowNewFileForm={setShowNewFileForm}
         fileType={fileType}
         setFileType={setFileType}
+        isWaitingForInput={isWaitingForInput}
+        terminalInputVal={terminalInputVal}
+        setTerminalInputVal={setTerminalInputVal}
+        submitTerminalInput={submitTerminalInput}
+        terminateWorker={terminateWorker}
       />
     );
   }
@@ -1592,16 +1698,47 @@ img
                       <Terminal className="w-4 h-4 text-emerald-400" />
                       <span className="text-[10px] font-bold font-orbitron tracking-wider text-emerald-400">OUTPUT CONSOLE</span>
                     </div>
-                    <button onClick={() => setConsoleOutput('')} className="text-[9px] font-bold text-slate-500 hover:text-white transition">
-                      CLEAR
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {isRunning && (
+                        <button 
+                          onClick={terminateWorker} 
+                          className="text-[9px] font-bold text-red-400 hover:text-red-300 transition uppercase mr-2"
+                        >
+                          Stop
+                        </button>
+                      )}
+                      <button onClick={() => setConsoleOutput('')} className="text-[9px] font-bold text-slate-500 hover:text-white transition">
+                        CLEAR
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="flex-1 flex overflow-hidden">
                     {/* Output log */}
-                    <pre id="terminal-logs" className="flex-1 p-4 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed">
-                      {consoleOutput}
-                    </pre>
+                    <div className="flex-1 p-4 overflow-hidden flex flex-col bg-[#03050a]/30">
+                      <pre id="terminal-logs" className="flex-1 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                        {consoleOutput}
+                      </pre>
+                      
+                      {isWaitingForInput && (
+                        <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-2 font-mono text-[10px] select-none animate-fadeIn shrink-0">
+                          <span className="text-emerald-400 font-bold shrink-0">&gt;_ INPUT:</span>
+                          <input
+                            type="text"
+                            value={terminalInputVal}
+                            onChange={(e) => setTerminalInputVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                submitTerminalInput();
+                              }
+                            }}
+                            autoFocus
+                            placeholder="Type response and press Enter..."
+                            className="flex-1 bg-transparent border-0 outline-none text-slate-200 caret-emerald-400 font-mono text-[10px]"
+                          />
+                        </div>
+                      )}
+                    </div>
 
                     {/* Matplotlib image render view */}
                     {matplotlibPlot && (
