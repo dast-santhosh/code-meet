@@ -182,6 +182,21 @@ export default function MeetRoom() {
     initPyodide();
   }, []);
 
+  // Set up global terminal updating function for Pyodide inputs
+  useEffect(() => {
+    window.updateTerminalOutput = (text) => {
+      const el = document.getElementById('terminal-logs');
+      if (el) {
+        el.textContent = text;
+        el.scrollTop = el.scrollHeight;
+      }
+      setConsoleOutput(text);
+    };
+    return () => {
+      delete window.updateTerminalOutput;
+    };
+  }, []);
+
   // File state is managed locally for each workspace
 
   // Firestore Session Safety check
@@ -816,45 +831,72 @@ export default function MeetRoom() {
     setConsoleOutput("Executing Python script in DevShaala console...\n");
     setMatplotlibPlot(null);
 
-    try {
-      const pyInst = window.pyodideInstance;
-      
-      // Redirect Pyodide stdout and stderr
-      pyInst.runPython(`
+    // Defer execution slightly to allow UI paint before prompt blocks
+    setTimeout(async () => {
+      try {
+        const pyInst = window.pyodideInstance;
+        
+        // Configure stdout, stderr, and override builtins.input using custom prompt
+        pyInst.runPython(`
 import sys
 import io
+import builtins
+import js
+
 sys.stdout = io.StringIO()
 sys.stderr = io.StringIO()
-      `);
 
-      // Write all project files into Pyodide virtual file system
-      Object.entries(files).forEach(([name, content]) => {
-        pyInst.FS.writeFile(name, content);
-      });
+def custom_input(prompt_str=""):
+    if prompt_str:
+        sys.stdout.write(prompt_str)
+    sys.stdout.flush()
+    if hasattr(js, "updateTerminalOutput"):
+        js.updateTerminalOutput(sys.stdout.getvalue())
+    
+    val = js.prompt(prompt_str)
+    if val is None:
+        raise KeyboardInterrupt("Execution cancelled by user.")
+    
+    sys.stdout.write(val + "\\n")
+    sys.stdout.flush()
+    if hasattr(js, "updateTerminalOutput"):
+        js.updateTerminalOutput(sys.stdout.getvalue())
+    return val
 
-      // Get code from active file and execute it
-      const fileCode = files[activeFile] || "";
-      await pyInst.runPythonAsync(fileCode);
+builtins.input = custom_input
+        `);
 
-      // Fetch standard output and errors
-      const stdout = pyInst.runPython("sys.stdout.getvalue()");
-      const stderr = pyInst.runPython("sys.stderr.getvalue()");
+        // Write all project files into Pyodide virtual file system
+        Object.entries(files).forEach(([name, content]) => {
+          pyInst.FS.writeFile(name, content);
+        });
 
-      let output = '';
-      if (stdout) output += stdout;
-      if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
-      if (!stdout && !stderr) output += "Code ran successfully with no printed output.";
+        // Get code from active file and execute it
+        const fileCode = files[activeFile] || "";
+        await pyInst.runPythonAsync(fileCode);
 
-      setConsoleOutput(output);
+        // Fetch standard output and errors
+        const stdout = pyInst.runPython("sys.stdout.getvalue()");
+        const stderr = pyInst.runPython("sys.stderr.getvalue()");
 
-      // Intercept Matplotlib plots if generated
-      const hasPlot = pyInst.runPython(`
+        let output = '';
+        if (stdout) output += stdout;
+        if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
+        if (!stdout && !stderr) output += "Code ran successfully with no printed output.";
+
+        setConsoleOutput(output);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(output);
+        }
+
+        // Intercept Matplotlib plots if generated
+        const hasPlot = pyInst.runPython(`
 import sys
 'matplotlib' in sys.modules and len(sys.modules['matplotlib'].pyplot.get_fignums()) > 0
-      `);
+        `);
 
-      if (hasPlot) {
-        const plotBase64 = pyInst.runPython(`
+        if (hasPlot) {
+          const plotBase64 = pyInst.runPython(`
 import io, base64
 import matplotlib.pyplot as plt
 buf = io.BytesIO()
@@ -863,16 +905,33 @@ buf.seek(0)
 img = base64.b64encode(buf.read()).decode('utf-8')
 plt.close('all')
 img
-        `);
-        setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
-        setConsoleOutput(prev => prev + "\n\n[Matplotlib Plot Generated]: Plotted successfully below.");
-      }
+          `);
+          setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
+          const finalOutputWithPlot = output + "\n\n[Matplotlib Plot Generated]: Plotted successfully below.";
+          setConsoleOutput(finalOutputWithPlot);
+          if (window.updateTerminalOutput) {
+            window.updateTerminalOutput(finalOutputWithPlot);
+          }
+        }
 
-    } catch (err) {
-      setConsoleOutput(prev => prev + `\n[Syntax/Execution Error]:\n${err.message}`);
-    } finally {
-      setIsRunning(false);
-    }
+      } catch (err) {
+        let stdout = "";
+        try {
+          stdout = window.pyodideInstance.runPython("sys.stdout.getvalue()");
+        } catch (e) {}
+        
+        let errorMsg = "";
+        if (stdout) errorMsg += stdout;
+        errorMsg += `\n[Syntax/Execution Error]:\n${err.message}`;
+        
+        setConsoleOutput(errorMsg);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(errorMsg);
+        }
+      } finally {
+        setIsRunning(false);
+      }
+    }, 100);
   };
 
   // Create local file in explorer
@@ -1540,7 +1599,7 @@ img
                   
                   <div className="flex-1 flex overflow-hidden">
                     {/* Output log */}
-                    <pre className="flex-1 p-4 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed">
+                    <pre id="terminal-logs" className="flex-1 p-4 overflow-y-auto text-[10px] font-mono text-slate-300 whitespace-pre-wrap select-text leading-relaxed">
                       {consoleOutput}
                     </pre>
 

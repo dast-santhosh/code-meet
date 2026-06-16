@@ -47,6 +47,11 @@ export default function MobileIDE() {
   const [isRunning, setIsRunning] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState('');
   const [matplotlibPlot, setMatplotlibPlot] = useState(null);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
+  const [isWaitingForInput, setIsWaitingForInput] = useState(false);
+  const [terminalInputVal, setTerminalInputVal] = useState('');
+  const workerRef = useRef(null);
 
   // Tab View for Mobile screens
   // Options: 'editor', 'explorer', 'console', 'output'
@@ -72,101 +77,104 @@ export default function MobileIDE() {
     localStorage.setItem('devshaala_ide_active_file', activeFile);
   }, [activeFile]);
 
-  // Boot Pyodide WASM Runtime on load
-  useEffect(() => {
-    const initPyodide = async () => {
-      try {
-        if (window.pyodideInstance) {
-          setPyodideLoaded(true);
-          return;
+  // Boot Pyodide WASM Runtime in a Web Worker on load
+  const initWorker = () => {
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    const backendUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+
+    const workerCode = `
+      importScripts("https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js");
+
+      let pyodideInstance = null;
+
+      self.syncStdout = (text) => {
+        postMessage({ type: 'stdout', text });
+      };
+
+      async function initPyodide() {
+        try {
+          pyodideInstance = await loadPyodide();
+          await pyodideInstance.loadPackage(['numpy', 'pandas', 'matplotlib']);
+          postMessage({ type: 'ready' });
+        } catch (e) {
+          postMessage({ type: 'error_init', message: e.message });
         }
-
-        if (window.loadPyodide) {
-          // Temporarily disable AMD loader to prevent Pyodide and Emscripten package scripts from being hijacked by Monaco's AMD loader
-          const saveDefine = window.define;
-          const saveRequire = window.require;
-          window.define = undefined;
-          window.require = undefined;
-
-          let pyInst;
-          try {
-            setPyodideLoadingProgress("Booting Python browser engine...");
-            pyInst = await window.loadPyodide();
-            window.pyodideInstance = pyInst;
-
-            setPyodideLoadingProgress("Pre-loading NumPy, Pandas, and Matplotlib libraries...");
-            await pyInst.loadPackage(['numpy', 'pandas', 'matplotlib']);
-          } finally {
-            // Restore AMD loader
-            if (saveDefine) window.define = saveDefine;
-            if (saveRequire) window.require = saveRequire;
-          }
-          
-          setPyodideLoaded(true);
-        } else {
-          setPyodideLoadingProgress("[Error] Core script loader failed. Please refresh.");
-        }
-      } catch (err) {
-        setPyodideLoadingProgress(`[Boot Error]: ${err.message}`);
       }
-    };
-    initPyodide();
-  }, []);
 
-  // Run script
-  const runPythonCode = async () => {
-    if (!pyodideLoaded || isRunning) {
-      if (!pyodideLoaded) toast.error("Python engine is still starting up...");
-      return;
-    }
-    setIsRunning(true);
-    setConsoleOutput("Executing Python script in DevShaala console...\n");
-    setMatplotlibPlot(null);
+      onmessage = async (e) => {
+        const { type, code, files, activeFile } = e.data;
+        if (type === 'init') {
+          await initPyodide();
+        } else if (type === 'run') {
+          if (!pyodideInstance) {
+            postMessage({ type: 'error', message: 'Python WASM Engine is not loaded yet.' });
+            return;
+          }
 
-    // Switch tab on mobile so user sees the console running
-    if (isMobile) {
-      setActiveMobileTab('console');
-    }
+          try {
+            // Write all project files to worker's virtual filesystem
+            Object.entries(files).forEach(([name, content]) => {
+              pyodideInstance.FS.writeFile(name, content);
+            });
 
-    try {
-      const pyInst = window.pyodideInstance;
-
-      // Configure stdout and stderr redirects
-      pyInst.runPython(`
+            // Set up stdout, stderr redirection and override builtins.input
+            pyodideInstance.runPython(\`
 import sys
 import io
+import builtins
+import js
+import json
+
 sys.stdout = io.StringIO()
 sys.stderr = io.StringIO()
-      `);
 
-      // Write all workspace files into Pyodide virtual file system
-      Object.entries(files).forEach(([name, content]) => {
-        pyInst.FS.writeFile(name, content);
-      });
+def custom_input(prompt_str=""):
+    if prompt_str:
+        sys.stdout.write(prompt_str)
+    sys.stdout.flush()
+    if hasattr(js, "syncStdout"):
+        js.syncStdout(sys.stdout.getvalue())
+    
+    # Notify main thread that we are waiting for input
+    js.postMessage(js.JSON.parse(json.dumps({"type": "waiting_for_input", "prompt": prompt_str})))
 
-      // Get active script code
-      const currentCode = files[activeFile] || "";
-      await pyInst.runPythonAsync(currentCode);
+    # Synchronous XHR to block the worker thread and wait for input from FastAPI
+    xhr = js.XMLHttpRequest.new()
+    xhr.open("GET", "${backendUrl}/api/input/get/${sessionId}", False)
+    xhr.send()
+    
+    if xhr.status == 200:
+        res = json.loads(xhr.responseText)
+        val = res.get("value", "")
+        if val is None:
+            raise KeyboardInterrupt("Execution cancelled by user.")
+        
+        sys.stdout.write(val + "\\\\n")
+        sys.stdout.flush()
+        if hasattr(js, "syncStdout"):
+            js.syncStdout(sys.stdout.getvalue())
+        return val
+    else:
+        raise OSError("Failed to fetch input from backend: " + str(xhr.status))
 
-      // Collect prints
-      const stdout = pyInst.runPython("sys.stdout.getvalue()");
-      const stderr = pyInst.runPython("sys.stderr.getvalue()");
+builtins.input = custom_input
+            \`);
 
-      let output = "";
-      if (stdout) output += stdout;
-      if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
-      if (!stdout && !stderr) output += "Script completed execution with no output logs.";
+            // Run active Python code
+            await pyodideInstance.runPythonAsync(code);
 
-      setConsoleOutput(output);
+            const stdout = pyodideInstance.runPython("sys.stdout.getvalue()");
+            const stderr = pyodideInstance.runPython("sys.stderr.getvalue()");
 
-      // Check for matplotlib plot rendering
-      const hasPlot = pyInst.runPython(`
+            // Check matplotlib plot
+            const hasPlot = pyodideInstance.runPython(\`
 import sys
 'matplotlib' in sys.modules and len(sys.modules['matplotlib'].pyplot.get_fignums()) > 0
-      `);
+            \`);
 
-      if (hasPlot) {
-        const plotBase64 = pyInst.runPython(`
+            let plotBase64 = null;
+            if (hasPlot) {
+              plotBase64 = pyodideInstance.runPython(\`
 import io, base64
 import matplotlib.pyplot as plt
 buf = io.BytesIO()
@@ -175,20 +183,170 @@ buf.seek(0)
 img = base64.b64encode(buf.read()).decode('utf-8')
 plt.close('all')
 img
-        `);
-        setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
-        setConsoleOutput(prev => prev + "\n\n[Matplotlib Plot Generated]: Look in the Output tab.");
+              \`);
+            }
+
+            postMessage({ type: 'complete', stdout, stderr, plotBase64 });
+          } catch (err) {
+            let stdout = "";
+            try {
+              stdout = pyodideInstance.runPython("sys.stdout.getvalue()");
+            } catch (e) {}
+            postMessage({ type: 'error', message: err.message, stdout });
+          }
+        }
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    workerRef.current = worker;
+
+    worker.onmessage = (e) => {
+      const { type, text, stdout, stderr, plotBase64, message } = e.data;
+      if (type === 'ready') {
+        setPyodideLoaded(true);
+      } else if (type === 'error_init') {
+        setPyodideLoadingProgress(`[Engine Error]: ${message}`);
+      } else if (type === 'stdout') {
+        setConsoleOutput(text);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(text);
+        }
+      } else if (type === 'waiting_for_input') {
+        setIsWaitingForInput(true);
+      } else if (type === 'complete') {
+        setIsWaitingForInput(false);
+        setIsRunning(false);
         
-        // Auto navigate to plot view tab on mobile to visualize chart
-        if (isMobile) {
-          setActiveMobileTab('output');
+        let output = "";
+        if (stdout) output += stdout;
+        if (stderr) output += `\n[Runtime Error]:\n${stderr}`;
+        if (!stdout && !stderr) output += "Script completed execution with no output logs.";
+
+        setConsoleOutput(output);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(output);
+        }
+
+        if (plotBase64) {
+          setMatplotlibPlot(`data:image/png;base64,${plotBase64}`);
+          const finalOutput = output + "\n\n[Matplotlib Plot Generated]: Plotted successfully.";
+          setConsoleOutput(finalOutput);
+          if (window.updateTerminalOutput) {
+            window.updateTerminalOutput(finalOutput);
+          }
+        }
+      } else if (type === 'error') {
+        setIsWaitingForInput(false);
+        setIsRunning(false);
+        
+        let errorMsg = "";
+        if (stdout) errorMsg += stdout;
+        errorMsg += `\n[System Error]:\n${message}`;
+        
+        setConsoleOutput(errorMsg);
+        if (window.updateTerminalOutput) {
+          window.updateTerminalOutput(errorMsg);
         }
       }
+    };
 
-    } catch (err) {
-      setConsoleOutput(prev => prev + `\n[System Error]:\n${err.message}`);
-    } finally {
+    worker.postMessage({ type: 'init' });
+  };
+
+  useEffect(() => {
+    initWorker();
+    
+    // Set up global terminal updating function
+    window.updateTerminalOutput = (text) => {
+      const el = document.getElementById('terminal-logs');
+      if (el) {
+        el.textContent = text;
+        el.scrollTop = el.scrollHeight;
+      }
+      setConsoleOutput(text);
+    };
+
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+      delete window.updateTerminalOutput;
+    };
+  }, []);
+
+  // Run script
+  const runPythonCode = async () => {
+    if (!pyodideLoaded || isRunning) {
+      if (!pyodideLoaded) toast.error("Python engine is still starting up...");
+      return;
+    }
+
+    if (!isMobile) {
+      setIsTerminalOpen(true);
+    } else {
+      setActiveMobileTab('console');
+    }
+
+    setIsRunning(true);
+    setIsWaitingForInput(false);
+    setConsoleOutput("Executing Python script in DevShaala console...\n");
+    setMatplotlibPlot(null);
+
+    // Defer execution slightly to let UI paint before running
+    setTimeout(() => {
+      if (workerRef.current) {
+        workerRef.current.postMessage({
+          type: 'run',
+          code: files[activeFile] || "",
+          files: files,
+          activeFile: activeFile
+        });
+      } else {
+        setIsRunning(false);
+        toast.error("Web Worker is not active.");
+      }
+    }, 100);
+  };
+
+  const submitTerminalInput = async () => {
+    const val = terminalInputVal;
+    setTerminalInputVal('');
+    setIsWaitingForInput(false);
+    
+    // Append the user's input to the logs locally to simulate a real terminal
+    const nextLogs = consoleOutput + val + "\n";
+    setConsoleOutput(nextLogs);
+    const el = document.getElementById('terminal-logs');
+    if (el) {
+      el.textContent = nextLogs;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    try {
+      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+      const backendUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+      await fetch(`${backendUrl}/api/input/submit/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: val })
+      });
+    } catch (e) {
+      toast.error("Failed to submit input: " + e.message);
+    }
+  };
+
+  const handleCloseTerminal = () => {
+    setIsTerminalOpen(false);
+    if (isRunning) {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
       setIsRunning(false);
+      setIsWaitingForInput(false);
+      initWorker();
+      toast.success("Python script execution terminated.");
     }
   };
 
@@ -466,45 +624,6 @@ img
                     value={files[activeFile]}
                     onChange={handleUpdateFileContent}
                   />
-                </div>
-              </div>
-
-              {/* Console Tray */}
-              <div className="h-[250px] bg-slate-950/80 border-t border-white/5 flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-slate-950/50">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-emerald-400" />
-                    <span className="text-[10px] font-bold font-orbitron tracking-wider text-slate-400">OUTPUT CONSOLE</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setConsoleOutput('')}
-                      className="text-[9px] text-slate-500 hover:text-slate-300 px-2 py-0.5 rounded border border-white/5"
-                    >
-                      Clear
-                    </button>
-                    <button 
-                      onClick={handleDownloadFile}
-                      className="text-[9px] text-slate-400 hover:text-emerald-400 flex items-center gap-1"
-                    >
-                      <Download className="w-3 h-3" /> Download Active
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 flex overflow-hidden">
-                  {/* Console Logs */}
-                  <pre className="flex-1 p-4 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text bg-[#03050a]/40">
-                    {!pyodideLoaded ? pyodideLoadingProgress : consoleOutput || "Console output idle. Click Run to execute."}
-                  </pre>
-                  
-                  {/* Plots visualizer pane */}
-                  {matplotlibPlot && (
-                    <div className="w-[300px] border-l border-white/5 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden shrink-0">
-                      <div className="absolute top-2 left-2 text-[9px] font-bold text-slate-500">MATPLOTLIB OUTPUT</div>
-                      <img src={matplotlibPlot} alt="Matplotlib Plot" className="max-w-full max-h-full rounded border border-white/10 shadow-lg object-contain bg-white p-1" />
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -800,6 +919,100 @@ plt.plot([1, 2, 3], [5, 10, 8])
 plt.show()`}
                   </pre>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Interactive Popup Terminal Modal */}
+      <AnimatePresence>
+        {isTerminalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="glass-panel w-full max-w-4xl h-[75vh] min-h-[400px] rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl flex flex-col overflow-hidden relative"
+            >
+              {/* Terminal Header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-white/5 select-none shrink-0">
+                {/* Mac style control dots */}
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500 hover:bg-rose-600 transition cursor-pointer" onClick={handleCloseTerminal} />
+                  <span className="w-3 h-3 rounded-full bg-amber-500" />
+                  <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <div className="flex items-center gap-2 ml-4">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-black font-orbitron tracking-wider text-slate-300 uppercase">Interactive Terminal</span>
+                  </div>
+                </div>
+
+                {/* Status & Actions */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-slate-950 border border-white/5 px-2.5 py-1 rounded-lg text-[9px] text-slate-400 font-bold uppercase font-orbitron">
+                    <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                    {isRunning ? 'Running' : 'Idle'}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setConsoleOutput('');
+                      const el = document.getElementById('terminal-logs');
+                      if (el) el.textContent = '';
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800 border border-white/5 transition"
+                  >
+                    Clear Logs
+                  </button>
+
+                  <button
+                    onClick={handleCloseTerminal}
+                    className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Terminal Body */}
+              <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[#03050a]/95">
+                {/* Console Logs */}
+                <div className="flex-1 p-4 overflow-hidden flex flex-col bg-[#03050a]/30">
+                  <pre
+                    id="terminal-logs"
+                    className="flex-1 font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-text overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10"
+                  >
+                    {!pyodideLoaded ? pyodideLoadingProgress : consoleOutput || "Console output idle. Click Run to execute."}
+                  </pre>
+                  
+                  {isWaitingForInput && (
+                    <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-2 font-mono text-xs select-none animate-fadeIn shrink-0">
+                      <span className="text-emerald-400 font-bold shrink-0">&gt;_ INPUT:</span>
+                      <input
+                        type="text"
+                        value={terminalInputVal}
+                        onChange={(e) => setTerminalInputVal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            submitTerminalInput();
+                          }
+                        }}
+                        autoFocus
+                        placeholder="Type response and press Enter..."
+                        className="flex-1 bg-transparent border-0 outline-none text-slate-200 caret-emerald-400 font-mono"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Plots visualizer pane */}
+                {matplotlibPlot && (
+                  <div className="w-full md:w-[320px] border-t md:border-t-0 md:border-l border-white/5 bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden shrink-0">
+                    <div className="absolute top-2 left-3 text-[9px] font-bold text-slate-500 font-orbitron">MATPLOTLIB OUTPUT</div>
+                    <img src={matplotlibPlot} alt="Matplotlib Plot" className="max-w-full max-h-[90%] rounded-xl border border-white/10 shadow-lg object-contain bg-white p-1.5" />
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

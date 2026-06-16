@@ -249,3 +249,22 @@ async def websocket_endpoint(
             await websocket.close()
         except:
             pass
+
+from collections import defaultdict
+import asyncio
+
+session_input_queues = defaultdict(asyncio.Queue)
+
+@app.get("/api/input/get/{session_id}")
+async def get_session_input(session_id: str):
+    try:
+        val = await asyncio.wait_for(session_input_queues[session_id].get(), timeout=60.0)
+        return {"value": val}
+    except asyncio.TimeoutError:
+        return {"value": None}
+
+@app.post("/api/input/submit/{session_id}")
+async def submit_session_input(session_id: str, data: dict):
+    value = data.get("value", "")
+    await session_input_queues[session_id].put(value)
+    return {"status": "success"}
